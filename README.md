@@ -19,28 +19,28 @@ of the software to C++ if needed since we will have to do lots of operations and
 ---
 Options:
 ### Python
-    #### Pros:
+    Pros:
         + Easy to develop
         + Wide variety of libs, no proxy needed for HTTP requests
-    #### Cons:
+    Cons:
         - GIL limits the concurrent scraping
         - Its not possible to execute multiple python programs concurrently -> Not eficient
 ### C++
-    #### Pros:
+    Pros:
         + Lightweight
         + Max optimization
-    #### Neutral:
+    Neutral:
         * The amount of libraries is intermidiate, not as wide as python's
-    #### Cons:
+    Cons:
         - Difficulty
         - Manual management of proxies for rotational requests
 ### Go
-    #### Pros:
+    Pros:
         + Full Go stack
         + Easy to debug and maintain
-    #### Cons:
+    Cons:
         - Limited scraping tools
-    #### Neutral:
+    Neutral:
         * Crafting a scraping library might be a good idea for the Go community
 
 
