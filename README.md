@@ -1,31 +1,31 @@
 # mkt-PreD
 AI-based market forecasting tool
 
-## Architecture and technologies
+# Architecture and technologies
 ---
-### Concurrency -> Go
+## Concurrency -> Go
 ---
 Goroutines makes this election almost indisputable.
 1. Easy to develop concurrent tasks
 2. Escalability
 3. Eficiency -> In terms of execution time and memory resources
 
-### AI for predictions -> Python
+## AI for predictions -> Python
 ---
 Has a widely used variety of libs which makes the developing experience easier. After having a functional product we could migrate this part
 of the software to C++ if needed since we will have to do lots of operations and we might have to optimize it.
 
-### Web scraping -> TBD
+## Web scraping -> TBD
 ---
 Options:
-- Python
+### Python
     #### Pros:
         + Easy to develop
         + Wide variety of libs, no proxy needed for HTTP requests
     #### Cons:
         - GIL limits the concurrent scraping
         - Its not possible to execute multiple python programs concurrently -> Not eficient
-- C++
+### C++
     #### Pros:
         + Lightweight
         + Max optimization
@@ -34,7 +34,7 @@ Options:
     #### Cons:
         - Difficulty
         - Manual management of proxies for rotational requests
-- Go
+### Go
     #### Pros:
         + Full Go stack
         + Easy to debug and maintain
