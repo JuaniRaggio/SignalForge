@@ -2,8 +2,7 @@
 name = "signalforge"
 version = "0.1.0"
 description = "Financial signal processing and market intelligence platform"
-readme = "README.md"
-license = { text = "MIT" }
+license = { text = "Apache-2.0" }
 requires-python = ">=3.11"
 authors = [
     { name = "SignalForge Team" }

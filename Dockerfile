@@ -15,11 +15,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /bin/uv
 
 COPY pyproject.toml uv.lock ./
-RUN uv sync --frozen --no-dev
+RUN uv sync --frozen --no-dev --no-install-project
 
 COPY src/ ./src/
 COPY migrations/ ./migrations/
 COPY alembic.ini ./
+
+RUN uv sync --frozen --no-dev
 
 EXPOSE 8000
 
