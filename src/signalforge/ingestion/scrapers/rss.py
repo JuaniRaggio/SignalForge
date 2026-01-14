@@ -95,8 +95,7 @@ class RSSFeedScraper(BaseScraper):
 
         if hasattr(entry, "media_content"):
             metadata["media"] = [
-                {"url": m.get("url"), "type": m.get("type")}
-                for m in entry.media_content
+                {"url": m.get("url"), "type": m.get("type")} for m in entry.media_content
             ]
 
         return metadata
@@ -174,10 +173,7 @@ class MultiSourceRSSScraper:
 
     async def scrape_all(self) -> list[ScrapedArticle]:
         """Scrape all configured feeds and deduplicate results."""
-        scrapers = [
-            RSSFeedScraper(feed, timeout=self.timeout)
-            for feed in self.feeds
-        ]
+        scrapers = [RSSFeedScraper(feed, timeout=self.timeout) for feed in self.feeds]
 
         tasks = [scraper.scrape() for scraper in scrapers]
         results = await asyncio.gather(*tasks, return_exceptions=True)

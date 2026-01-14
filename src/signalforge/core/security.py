@@ -32,9 +32,7 @@ def create_access_token(
     if expires_delta:
         expire = datetime.now(UTC) + expires_delta
     else:
-        expire = datetime.now(UTC) + timedelta(
-            minutes=settings.jwt_access_token_expire_minutes
-        )
+        expire = datetime.now(UTC) + timedelta(minutes=settings.jwt_access_token_expire_minutes)
     to_encode.update({"exp": expire, "type": "access"})
     return jwt.encode(
         to_encode,
@@ -52,9 +50,7 @@ def create_refresh_token(
     if expires_delta:
         expire = datetime.now(UTC) + expires_delta
     else:
-        expire = datetime.now(UTC) + timedelta(
-            days=settings.jwt_refresh_token_expire_days
-        )
+        expire = datetime.now(UTC) + timedelta(days=settings.jwt_refresh_token_expire_days)
     to_encode.update({"exp": expire, "type": "refresh"})
     return jwt.encode(
         to_encode,

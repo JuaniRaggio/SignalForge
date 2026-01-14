@@ -13,9 +13,7 @@ from signalforge.ingestion.api_clients.base import BaseAPIClient
 
 logger = logging.getLogger(__name__)
 
-PeriodType = Literal[
-    "1d", "5d", "1mo", "3mo", "6mo", "1y", "2y", "5y", "10y", "ytd", "max"
-]
+PeriodType = Literal["1d", "5d", "1mo", "3mo", "6mo", "1y", "2y", "5y", "10y", "ytd", "max"]
 IntervalType = Literal[
     "1m", "2m", "5m", "15m", "30m", "60m", "90m", "1h", "1d", "5d", "1wk", "1mo", "3mo"
 ]
@@ -80,11 +78,8 @@ class YahooFinanceClient(BaseAPIClient):
 
             # Check if timestamp needs timezone
             timestamp_dtype = pl_df["timestamp"].dtype
-            if isinstance(timestamp_dtype, pl.Datetime):
-                if timestamp_dtype.time_zone is None:
-                    pl_df = pl_df.with_columns(
-                        pl.col("timestamp").dt.replace_time_zone("UTC")
-                    )
+            if isinstance(timestamp_dtype, pl.Datetime) and timestamp_dtype.time_zone is None:
+                pl_df = pl_df.with_columns(pl.col("timestamp").dt.replace_time_zone("UTC"))
 
             select_cols = [
                 "symbol",
@@ -150,10 +145,7 @@ class YahooFinanceClient(BaseAPIClient):
         interval: IntervalType = "1d",
     ) -> dict[str, pl.DataFrame]:
         """Fetch data for multiple symbols concurrently."""
-        tasks = [
-            self.fetch_data(symbol, period=period, interval=interval)
-            for symbol in symbols
-        ]
+        tasks = [self.fetch_data(symbol, period=period, interval=interval) for symbol in symbols]
         results = await asyncio.gather(*tasks, return_exceptions=True)
 
         data: dict[str, pl.DataFrame] = {}

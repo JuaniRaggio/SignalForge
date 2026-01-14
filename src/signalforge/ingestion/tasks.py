@@ -2,8 +2,9 @@
 
 import asyncio
 import logging
+from collections.abc import Coroutine
 from decimal import Decimal
-from typing import Any, Coroutine, TypeVar
+from typing import Any, TypeVar
 
 from celery import shared_task
 
@@ -64,9 +65,7 @@ async def _ingest_daily_prices_async(symbols: list[str]) -> dict[str, Any]:
                             close=Decimal(str(row["close"])),
                             volume=row["volume"],
                             adj_close=(
-                                Decimal(str(row["adj_close"]))
-                                if row.get("adj_close")
-                                else None
+                                Decimal(str(row["adj_close"])) if row.get("adj_close") else None
                             ),
                         )
                         await session.merge(price)
@@ -123,9 +122,7 @@ async def _ingest_historical_backfill_async(
                     low=Decimal(str(row["low"])),
                     close=Decimal(str(row["close"])),
                     volume=row["volume"],
-                    adj_close=(
-                        Decimal(str(row["adj_close"])) if row.get("adj_close") else None
-                    ),
+                    adj_close=(Decimal(str(row["adj_close"])) if row.get("adj_close") else None),
                 )
                 await session.merge(price)
                 results["records_inserted"] += 1
