@@ -2,7 +2,6 @@
 
 import asyncio
 import logging
-from datetime import datetime, timezone
 from decimal import Decimal
 
 from celery import shared_task
@@ -28,7 +27,7 @@ def run_async(coro):
 
 
 @shared_task(bind=True, name="signalforge.ingestion.tasks.ingest_daily_prices")
-def ingest_daily_prices(self, symbols: list[str] | None = None) -> dict:
+def ingest_daily_prices(_self, symbols: list[str] | None = None) -> dict:  # noqa: ARG001
     """Ingest daily prices for configured symbols."""
     symbols = symbols or DEFAULT_SYMBOLS
     return run_async(_ingest_daily_prices_async(symbols))
@@ -77,7 +76,7 @@ async def _ingest_daily_prices_async(symbols: list[str]) -> dict:
 
 @shared_task(bind=True, name="signalforge.ingestion.tasks.ingest_historical_backfill")
 def ingest_historical_backfill(
-    self,
+    _self,  # noqa: ARG001
     symbol: str,
     period: str = "1y",
 ) -> dict:
@@ -121,7 +120,7 @@ async def _ingest_historical_backfill_async(symbol: str, period: str) -> dict:
 
 
 @shared_task(bind=True, name="signalforge.ingestion.tasks.scrape_news_rss")
-def scrape_news_rss(self) -> dict:
+def scrape_news_rss(_self) -> dict:  # noqa: ARG001
     """Scrape news from configured RSS feeds."""
     return run_async(_scrape_news_rss_async())
 

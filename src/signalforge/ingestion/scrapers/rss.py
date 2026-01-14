@@ -3,7 +3,7 @@
 import asyncio
 import logging
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from email.utils import parsedate_to_datetime
 from typing import Any
 
@@ -184,7 +184,7 @@ class MultiSourceRSSScraper:
 
         all_articles: list[ScrapedArticle] = []
 
-        for feed, result in zip(self.feeds, results):
+        for feed, result in zip(self.feeds, results, strict=True):
             if isinstance(result, Exception):
                 logger.error(f"Scraper failed for {feed.name}: {result}")
                 continue
@@ -196,7 +196,7 @@ class MultiSourceRSSScraper:
                     all_articles.append(article)
 
         all_articles.sort(
-            key=lambda a: a.published_at or datetime.min.replace(tzinfo=timezone.utc),
+            key=lambda a: a.published_at or datetime.min.replace(tzinfo=UTC),
             reverse=True,
         )
 
