@@ -23,11 +23,11 @@ class Settings(BaseSettings):
 
     # Database
     database_url: str = (
-        "postgresql+asyncpg://signalforge:signalforge_dev@localhost:5432/signalforge"
+        "postgresql+asyncpg://signalforge:signalforge_dev@localhost:5434/signalforge"
     )
 
     # Redis
-    redis_url: str = "redis://localhost:6379/0"
+    redis_url: str = "redis://localhost:6380/0"
 
     # JWT
     jwt_secret_key: str = "your-super-secret-key-change-in-production"
@@ -36,8 +36,8 @@ class Settings(BaseSettings):
     jwt_refresh_token_expire_days: int = 7
 
     # Celery
-    celery_broker_url: str = "redis://localhost:6379/1"
-    celery_result_backend: str = "redis://localhost:6379/2"
+    celery_broker_url: str = "redis://localhost:6380/1"
+    celery_result_backend: str = "redis://localhost:6380/2"
 
     # API
     api_v1_prefix: str = "/api/v1"
