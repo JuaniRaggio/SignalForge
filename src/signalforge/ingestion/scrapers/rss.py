@@ -185,10 +185,11 @@ class MultiSourceRSSScraper:
         all_articles: list[ScrapedArticle] = []
 
         for feed, result in zip(self.feeds, results, strict=True):
-            if isinstance(result, Exception):
+            if isinstance(result, BaseException):
                 logger.error(f"Scraper failed for {feed.name}: {result}")
                 continue
 
+            # result is now guaranteed to be list[ScrapedArticle]
             for article in result:
                 normalized_url = article.url.lower()
                 if normalized_url not in self._seen_urls:

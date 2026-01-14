@@ -3,7 +3,7 @@
 import asyncio
 import logging
 from concurrent.futures import ThreadPoolExecutor
-from typing import Any, Literal
+from typing import Any, Literal, cast
 
 import polars as pl
 import yfinance as yf
@@ -13,8 +13,12 @@ from signalforge.ingestion.api_clients.base import BaseAPIClient
 
 logger = logging.getLogger(__name__)
 
-PeriodType = Literal["1d", "5d", "1mo", "3mo", "6mo", "1y", "2y", "5y", "10y", "ytd", "max"]
-IntervalType = Literal["1m", "2m", "5m", "15m", "30m", "60m", "90m", "1h", "1d", "5d", "1wk", "1mo", "3mo"]
+PeriodType = Literal[
+    "1d", "5d", "1mo", "3mo", "6mo", "1y", "2y", "5y", "10y", "ytd", "max"
+]
+IntervalType = Literal[
+    "1m", "2m", "5m", "15m", "30m", "60m", "90m", "1h", "1d", "5d", "1wk", "1mo", "3mo"
+]
 
 
 class YahooFinanceClient(BaseAPIClient):
@@ -74,10 +78,13 @@ class YahooFinanceClient(BaseAPIClient):
 
             pl_df = pl_df.with_columns(pl.lit(symbol.upper()).alias("symbol"))
 
-            if pl_df["timestamp"].dtype == pl.Datetime and pl_df["timestamp"].dtype.time_zone is None:
-                pl_df = pl_df.with_columns(
-                    pl.col("timestamp").dt.replace_time_zone("UTC")
-                )
+            # Check if timestamp needs timezone
+            timestamp_dtype = pl_df["timestamp"].dtype
+            if isinstance(timestamp_dtype, pl.Datetime):
+                if timestamp_dtype.time_zone is None:
+                    pl_df = pl_df.with_columns(
+                        pl.col("timestamp").dt.replace_time_zone("UTC")
+                    )
 
             select_cols = [
                 "symbol",
@@ -93,13 +100,15 @@ class YahooFinanceClient(BaseAPIClient):
 
             pl_df = pl_df.select(select_cols)
 
-            pl_df = pl_df.with_columns([
-                pl.col("open").cast(pl.Float64),
-                pl.col("high").cast(pl.Float64),
-                pl.col("low").cast(pl.Float64),
-                pl.col("close").cast(pl.Float64),
-                pl.col("volume").cast(pl.Int64),
-            ])
+            pl_df = pl_df.with_columns(
+                [
+                    pl.col("open").cast(pl.Float64),
+                    pl.col("high").cast(pl.Float64),
+                    pl.col("low").cast(pl.Float64),
+                    pl.col("close").cast(pl.Float64),
+                    pl.col("volume").cast(pl.Int64),
+                ]
+            )
 
             if "adj_close" in pl_df.columns:
                 pl_df = pl_df.with_columns(pl.col("adj_close").cast(pl.Float64))
@@ -111,7 +120,7 @@ class YahooFinanceClient(BaseAPIClient):
         except Exception as e:
             logger.error(f"Error fetching data for {symbol}: {e}")
             raise ExternalAPIError(
-                message=f"Failed to fetch data for {symbol}: {str(e)}",
+                message=f"Failed to fetch data for {symbol}: {e!s}",
                 source="yahoo_finance",
             )
 
@@ -124,7 +133,7 @@ class YahooFinanceClient(BaseAPIClient):
     ) -> pl.DataFrame:
         """Fetch historical price data for a symbol."""
         loop = asyncio.get_event_loop()
-        return await self._retry_with_backoff(
+        result = await self._retry_with_backoff(
             loop.run_in_executor,
             self._executor,
             self._fetch_sync,
@@ -132,6 +141,7 @@ class YahooFinanceClient(BaseAPIClient):
             period,
             interval,
         )
+        return cast(pl.DataFrame, result)
 
     async def fetch_multiple(
         self,
@@ -148,7 +158,7 @@ class YahooFinanceClient(BaseAPIClient):
 
         data: dict[str, pl.DataFrame] = {}
         for symbol, result in zip(symbols, results, strict=True):
-            if isinstance(result, Exception):
+            if isinstance(result, BaseException):
                 logger.error(f"Failed to fetch {symbol}: {result}")
             else:
                 data[symbol] = result

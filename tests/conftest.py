@@ -16,9 +16,11 @@ from signalforge.models.base import Base
 
 settings = get_settings()
 
-TEST_DATABASE_URL = settings.database_url.replace(
-    "signalforge", "signalforge_test"
-) if "signalforge_test" not in settings.database_url else settings.database_url
+TEST_DATABASE_URL = (
+    settings.database_url.replace("signalforge", "signalforge_test")
+    if "signalforge_test" not in settings.database_url
+    else settings.database_url
+)
 
 
 @pytest.fixture(scope="session")

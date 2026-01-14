@@ -1,6 +1,7 @@
 """Security utilities for JWT and password hashing."""
 
 from datetime import UTC, datetime, timedelta
+from typing import Any
 
 from jose import JWTError, jwt
 from passlib.context import CryptContext
@@ -23,7 +24,7 @@ def get_password_hash(password: str) -> str:
 
 
 def create_access_token(
-    data: dict,
+    data: dict[str, Any],
     expires_delta: timedelta | None = None,
 ) -> str:
     """Create a JWT access token."""
@@ -43,7 +44,7 @@ def create_access_token(
 
 
 def create_refresh_token(
-    data: dict,
+    data: dict[str, Any],
     expires_delta: timedelta | None = None,
 ) -> str:
     """Create a JWT refresh token."""
@@ -62,7 +63,7 @@ def create_refresh_token(
     )
 
 
-def decode_token(token: str) -> dict | None:
+def decode_token(token: str) -> dict[str, Any] | None:
     """Decode and verify a JWT token."""
     try:
         payload = jwt.decode(
@@ -75,6 +76,6 @@ def decode_token(token: str) -> dict | None:
         return None
 
 
-def verify_token_type(payload: dict, expected_type: str) -> bool:
+def verify_token_type(payload: dict[str, Any], expected_type: str) -> bool:
     """Verify the token type matches the expected type."""
     return payload.get("type") == expected_type
