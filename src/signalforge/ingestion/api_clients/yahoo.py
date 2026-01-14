@@ -3,7 +3,6 @@
 import asyncio
 import logging
 from concurrent.futures import ThreadPoolExecutor
-from datetime import datetime, timezone
 from typing import Any, Literal
 
 import polars as pl
@@ -75,11 +74,10 @@ class YahooFinanceClient(BaseAPIClient):
 
             pl_df = pl_df.with_columns(pl.lit(symbol.upper()).alias("symbol"))
 
-            if pl_df["timestamp"].dtype == pl.Datetime:
-                if pl_df["timestamp"].dtype.time_zone is None:
-                    pl_df = pl_df.with_columns(
-                        pl.col("timestamp").dt.replace_time_zone("UTC")
-                    )
+            if pl_df["timestamp"].dtype == pl.Datetime and pl_df["timestamp"].dtype.time_zone is None:
+                pl_df = pl_df.with_columns(
+                    pl.col("timestamp").dt.replace_time_zone("UTC")
+                )
 
             select_cols = [
                 "symbol",
@@ -122,7 +120,7 @@ class YahooFinanceClient(BaseAPIClient):
         symbol: str,
         period: PeriodType = "1mo",
         interval: IntervalType = "1d",
-        **kwargs: Any,
+        **_kwargs: Any,
     ) -> pl.DataFrame:
         """Fetch historical price data for a symbol."""
         loop = asyncio.get_event_loop()
@@ -149,7 +147,7 @@ class YahooFinanceClient(BaseAPIClient):
         results = await asyncio.gather(*tasks, return_exceptions=True)
 
         data: dict[str, pl.DataFrame] = {}
-        for symbol, result in zip(symbols, results):
+        for symbol, result in zip(symbols, results, strict=True):
             if isinstance(result, Exception):
                 logger.error(f"Failed to fetch {symbol}: {result}")
             else:
