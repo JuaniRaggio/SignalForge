@@ -6,7 +6,7 @@ from typing import AsyncGenerator
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from signalforge.api.routes import auth, health, market
+from signalforge.api.routes import auth, health, market, news
 from signalforge.core.config import get_settings
 from signalforge.core.redis import close_redis
 
@@ -49,6 +49,11 @@ def create_app() -> FastAPI:
         market.router,
         prefix=f"{settings.api_v1_prefix}/market",
         tags=["Market"],
+    )
+    app.include_router(
+        news.router,
+        prefix=f"{settings.api_v1_prefix}/news",
+        tags=["News"],
     )
 
     return app
