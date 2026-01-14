@@ -2,13 +2,14 @@
 
 import asyncio
 import logging
-from datetime import datetime, timezone
+from collections.abc import Coroutine
 from decimal import Decimal
+from typing import Any, TypeVar
 
 from celery import shared_task
 
 from signalforge.core.database import get_session_context
-from signalforge.ingestion.api_clients.yahoo import YahooFinanceClient
+from signalforge.ingestion.api_clients.yahoo import PeriodType, YahooFinanceClient
 from signalforge.ingestion.scrapers.rss import MultiSourceRSSScraper
 from signalforge.models.news import NewsArticle
 from signalforge.models.price import Price
@@ -17,8 +18,10 @@ logger = logging.getLogger(__name__)
 
 DEFAULT_SYMBOLS = ["AAPL", "MSFT", "GOOGL", "AMZN", "NVDA", "META", "TSLA", "SPY", "QQQ"]
 
+T = TypeVar("T")
 
-def run_async(coro):
+
+def run_async(coro: Coroutine[Any, Any, T]) -> T:
     """Run async function in sync context for Celery."""
     loop = asyncio.new_event_loop()
     try:
@@ -27,17 +30,24 @@ def run_async(coro):
         loop.close()
 
 
-@shared_task(bind=True, name="signalforge.ingestion.tasks.ingest_daily_prices")
-def ingest_daily_prices(self, symbols: list[str] | None = None) -> dict:
+@shared_task(bind=True, name="signalforge.ingestion.tasks.ingest_daily_prices")  # type: ignore[untyped-decorator]
+def ingest_daily_prices(
+    _self: Any,  # noqa: ARG001
+    symbols: list[str] | None = None,
+) -> dict[str, Any]:
     """Ingest daily prices for configured symbols."""
     symbols = symbols or DEFAULT_SYMBOLS
     return run_async(_ingest_daily_prices_async(symbols))
 
 
-async def _ingest_daily_prices_async(symbols: list[str]) -> dict:
+async def _ingest_daily_prices_async(symbols: list[str]) -> dict[str, Any]:
     """Async implementation of daily price ingestion."""
     client = YahooFinanceClient()
-    results = {"success": [], "failed": [], "records_inserted": 0}
+    results: dict[str, Any] = {
+        "success": [],
+        "failed": [],
+        "records_inserted": 0,
+    }
 
     try:
         data = await client.fetch_multiple(symbols, period="5d", interval="1d")
@@ -54,7 +64,9 @@ async def _ingest_daily_prices_async(symbols: list[str]) -> dict:
                             low=Decimal(str(row["low"])),
                             close=Decimal(str(row["close"])),
                             volume=row["volume"],
-                            adj_close=Decimal(str(row["adj_close"])) if row.get("adj_close") else None,
+                            adj_close=(
+                                Decimal(str(row["adj_close"])) if row.get("adj_close") else None
+                            ),
                         )
                         await session.merge(price)
                         results["records_inserted"] += 1
@@ -75,20 +87,27 @@ async def _ingest_daily_prices_async(symbols: list[str]) -> dict:
     return results
 
 
-@shared_task(bind=True, name="signalforge.ingestion.tasks.ingest_historical_backfill")
+@shared_task(bind=True, name="signalforge.ingestion.tasks.ingest_historical_backfill")  # type: ignore[untyped-decorator]
 def ingest_historical_backfill(
-    self,
+    _self: Any,  # noqa: ARG001
     symbol: str,
-    period: str = "1y",
-) -> dict:
+    period: PeriodType = "1y",
+) -> dict[str, Any]:
     """Backfill historical data for a new symbol."""
     return run_async(_ingest_historical_backfill_async(symbol, period))
 
 
-async def _ingest_historical_backfill_async(symbol: str, period: str) -> dict:
+async def _ingest_historical_backfill_async(
+    symbol: str,
+    period: PeriodType,
+) -> dict[str, Any]:
     """Async implementation of historical backfill."""
     client = YahooFinanceClient()
-    results = {"symbol": symbol, "records_inserted": 0, "success": False}
+    results: dict[str, Any] = {
+        "symbol": symbol,
+        "records_inserted": 0,
+        "success": False,
+    }
 
     try:
         df = await client.fetch_data(symbol, period=period, interval="1d")
@@ -103,7 +122,7 @@ async def _ingest_historical_backfill_async(symbol: str, period: str) -> dict:
                     low=Decimal(str(row["low"])),
                     close=Decimal(str(row["close"])),
                     volume=row["volume"],
-                    adj_close=Decimal(str(row["adj_close"])) if row.get("adj_close") else None,
+                    adj_close=(Decimal(str(row["adj_close"])) if row.get("adj_close") else None),
                 )
                 await session.merge(price)
                 results["records_inserted"] += 1
@@ -120,16 +139,20 @@ async def _ingest_historical_backfill_async(symbol: str, period: str) -> dict:
     return results
 
 
-@shared_task(bind=True, name="signalforge.ingestion.tasks.scrape_news_rss")
-def scrape_news_rss(self) -> dict:
+@shared_task(bind=True, name="signalforge.ingestion.tasks.scrape_news_rss")  # type: ignore[untyped-decorator]
+def scrape_news_rss(_self: Any) -> dict[str, Any]:  # noqa: ARG001
     """Scrape news from configured RSS feeds."""
     return run_async(_scrape_news_rss_async())
 
 
-async def _scrape_news_rss_async() -> dict:
+async def _scrape_news_rss_async() -> dict[str, Any]:
     """Async implementation of RSS news scraping."""
     scraper = MultiSourceRSSScraper()
-    results = {"articles_scraped": 0, "articles_saved": 0, "duplicates_skipped": 0}
+    results: dict[str, Any] = {
+        "articles_scraped": 0,
+        "articles_saved": 0,
+        "duplicates_skipped": 0,
+    }
 
     try:
         articles = await scraper.scrape_all()
@@ -139,6 +162,7 @@ async def _scrape_news_rss_async() -> dict:
             for article in articles:
                 try:
                     from sqlalchemy import select
+
                     existing = await session.execute(
                         select(NewsArticle).where(NewsArticle.url == article.url)
                     )

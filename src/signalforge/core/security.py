@@ -1,6 +1,7 @@
 """Security utilities for JWT and password hashing."""
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
+from typing import Any
 
 from jose import JWTError, jwt
 from passlib.context import CryptContext
@@ -9,7 +10,11 @@ from signalforge.core.config import get_settings
 
 settings = get_settings()
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+pwd_context = CryptContext(
+    schemes=["bcrypt"],
+    deprecated="auto",
+    bcrypt__truncate_error=True,
+)
 
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
@@ -23,17 +28,15 @@ def get_password_hash(password: str) -> str:
 
 
 def create_access_token(
-    data: dict,
+    data: dict[str, Any],
     expires_delta: timedelta | None = None,
 ) -> str:
     """Create a JWT access token."""
     to_encode = data.copy()
     if expires_delta:
-        expire = datetime.now(timezone.utc) + expires_delta
+        expire = datetime.now(UTC) + expires_delta
     else:
-        expire = datetime.now(timezone.utc) + timedelta(
-            minutes=settings.jwt_access_token_expire_minutes
-        )
+        expire = datetime.now(UTC) + timedelta(minutes=settings.jwt_access_token_expire_minutes)
     to_encode.update({"exp": expire, "type": "access"})
     return jwt.encode(
         to_encode,
@@ -43,17 +46,15 @@ def create_access_token(
 
 
 def create_refresh_token(
-    data: dict,
+    data: dict[str, Any],
     expires_delta: timedelta | None = None,
 ) -> str:
     """Create a JWT refresh token."""
     to_encode = data.copy()
     if expires_delta:
-        expire = datetime.now(timezone.utc) + expires_delta
+        expire = datetime.now(UTC) + expires_delta
     else:
-        expire = datetime.now(timezone.utc) + timedelta(
-            days=settings.jwt_refresh_token_expire_days
-        )
+        expire = datetime.now(UTC) + timedelta(days=settings.jwt_refresh_token_expire_days)
     to_encode.update({"exp": expire, "type": "refresh"})
     return jwt.encode(
         to_encode,
@@ -62,7 +63,7 @@ def create_refresh_token(
     )
 
 
-def decode_token(token: str) -> dict | None:
+def decode_token(token: str) -> dict[str, Any] | None:
     """Decode and verify a JWT token."""
     try:
         payload = jwt.decode(
@@ -75,6 +76,6 @@ def decode_token(token: str) -> dict | None:
         return None
 
 
-def verify_token_type(payload: dict, expected_type: str) -> bool:
+def verify_token_type(payload: dict[str, Any], expected_type: str) -> bool:
     """Verify the token type matches the expected type."""
     return payload.get("type") == expected_type

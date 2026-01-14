@@ -3,6 +3,7 @@
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import (
     AsyncEngine,
     AsyncSession,
@@ -57,7 +58,7 @@ async def check_database_connection() -> bool:
     """Check if database connection is healthy."""
     try:
         async with engine.connect() as conn:
-            await conn.execute("SELECT 1")
+            await conn.execute(text("SELECT 1"))
         return True
     except Exception:
         return False
@@ -68,7 +69,7 @@ async def check_timescaledb() -> bool:
     try:
         async with engine.connect() as conn:
             result = await conn.execute(
-                "SELECT extname FROM pg_extension WHERE extname = 'timescaledb'"
+                text("SELECT extname FROM pg_extension WHERE extname = 'timescaledb'")
             )
             row = result.fetchone()
             return row is not None

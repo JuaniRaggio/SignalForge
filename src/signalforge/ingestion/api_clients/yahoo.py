@@ -3,8 +3,7 @@
 import asyncio
 import logging
 from concurrent.futures import ThreadPoolExecutor
-from datetime import datetime, timezone
-from typing import Any, Literal
+from typing import Any, Literal, cast
 
 import polars as pl
 import yfinance as yf
@@ -15,7 +14,9 @@ from signalforge.ingestion.api_clients.base import BaseAPIClient
 logger = logging.getLogger(__name__)
 
 PeriodType = Literal["1d", "5d", "1mo", "3mo", "6mo", "1y", "2y", "5y", "10y", "ytd", "max"]
-IntervalType = Literal["1m", "2m", "5m", "15m", "30m", "60m", "90m", "1h", "1d", "5d", "1wk", "1mo", "3mo"]
+IntervalType = Literal[
+    "1m", "2m", "5m", "15m", "30m", "60m", "90m", "1h", "1d", "5d", "1wk", "1mo", "3mo"
+]
 
 
 class YahooFinanceClient(BaseAPIClient):
@@ -75,11 +76,10 @@ class YahooFinanceClient(BaseAPIClient):
 
             pl_df = pl_df.with_columns(pl.lit(symbol.upper()).alias("symbol"))
 
-            if pl_df["timestamp"].dtype == pl.Datetime:
-                if pl_df["timestamp"].dtype.time_zone is None:
-                    pl_df = pl_df.with_columns(
-                        pl.col("timestamp").dt.replace_time_zone("UTC")
-                    )
+            # Check if timestamp needs timezone
+            timestamp_dtype = pl_df["timestamp"].dtype
+            if isinstance(timestamp_dtype, pl.Datetime) and timestamp_dtype.time_zone is None:
+                pl_df = pl_df.with_columns(pl.col("timestamp").dt.replace_time_zone("UTC"))
 
             select_cols = [
                 "symbol",
@@ -95,13 +95,15 @@ class YahooFinanceClient(BaseAPIClient):
 
             pl_df = pl_df.select(select_cols)
 
-            pl_df = pl_df.with_columns([
-                pl.col("open").cast(pl.Float64),
-                pl.col("high").cast(pl.Float64),
-                pl.col("low").cast(pl.Float64),
-                pl.col("close").cast(pl.Float64),
-                pl.col("volume").cast(pl.Int64),
-            ])
+            pl_df = pl_df.with_columns(
+                [
+                    pl.col("open").cast(pl.Float64),
+                    pl.col("high").cast(pl.Float64),
+                    pl.col("low").cast(pl.Float64),
+                    pl.col("close").cast(pl.Float64),
+                    pl.col("volume").cast(pl.Int64),
+                ]
+            )
 
             if "adj_close" in pl_df.columns:
                 pl_df = pl_df.with_columns(pl.col("adj_close").cast(pl.Float64))
@@ -113,7 +115,7 @@ class YahooFinanceClient(BaseAPIClient):
         except Exception as e:
             logger.error(f"Error fetching data for {symbol}: {e}")
             raise ExternalAPIError(
-                message=f"Failed to fetch data for {symbol}: {str(e)}",
+                message=f"Failed to fetch data for {symbol}: {e!s}",
                 source="yahoo_finance",
             )
 
@@ -122,11 +124,11 @@ class YahooFinanceClient(BaseAPIClient):
         symbol: str,
         period: PeriodType = "1mo",
         interval: IntervalType = "1d",
-        **kwargs: Any,
+        **_kwargs: Any,
     ) -> pl.DataFrame:
         """Fetch historical price data for a symbol."""
         loop = asyncio.get_event_loop()
-        return await self._retry_with_backoff(
+        result = await self._retry_with_backoff(
             loop.run_in_executor,
             self._executor,
             self._fetch_sync,
@@ -134,6 +136,7 @@ class YahooFinanceClient(BaseAPIClient):
             period,
             interval,
         )
+        return cast(pl.DataFrame, result)
 
     async def fetch_multiple(
         self,
@@ -142,15 +145,12 @@ class YahooFinanceClient(BaseAPIClient):
         interval: IntervalType = "1d",
     ) -> dict[str, pl.DataFrame]:
         """Fetch data for multiple symbols concurrently."""
-        tasks = [
-            self.fetch_data(symbol, period=period, interval=interval)
-            for symbol in symbols
-        ]
+        tasks = [self.fetch_data(symbol, period=period, interval=interval) for symbol in symbols]
         results = await asyncio.gather(*tasks, return_exceptions=True)
 
         data: dict[str, pl.DataFrame] = {}
-        for symbol, result in zip(symbols, results):
-            if isinstance(result, Exception):
+        for symbol, result in zip(symbols, results, strict=True):
+            if isinstance(result, BaseException):
                 logger.error(f"Failed to fetch {symbol}: {result}")
             else:
                 data[symbol] = result

@@ -1,14 +1,12 @@
 """Test configuration and fixtures."""
 
 import asyncio
-from collections.abc import AsyncGenerator
-from typing import Generator
+from collections.abc import AsyncGenerator, Generator
 
 import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
-from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.pool import StaticPool
 
 from signalforge.api.dependencies.database import get_db
@@ -18,9 +16,12 @@ from signalforge.models.base import Base
 
 settings = get_settings()
 
-TEST_DATABASE_URL = settings.database_url.replace(
-    "signalforge", "signalforge_test"
-) if "signalforge_test" not in settings.database_url else settings.database_url
+# Only replace the database name at the end of the URL, not the username
+_base_url = settings.database_url
+if _base_url.endswith("/signalforge"):
+    TEST_DATABASE_URL = _base_url[:-12] + "/signalforge_test"
+else:
+    TEST_DATABASE_URL = _base_url
 
 
 @pytest.fixture(scope="session")
@@ -43,7 +44,7 @@ async def db_session() -> AsyncGenerator[AsyncSession, None]:
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
 
-    async_session = sessionmaker(
+    async_session = async_sessionmaker(
         engine,
         class_=AsyncSession,
         expire_on_commit=False,

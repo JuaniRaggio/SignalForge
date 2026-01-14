@@ -3,7 +3,7 @@
 import asyncio
 import logging
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from email.utils import parsedate_to_datetime
 from typing import Any
 
@@ -95,8 +95,7 @@ class RSSFeedScraper(BaseScraper):
 
         if hasattr(entry, "media_content"):
             metadata["media"] = [
-                {"url": m.get("url"), "type": m.get("type")}
-                for m in entry.media_content
+                {"url": m.get("url"), "type": m.get("type")} for m in entry.media_content
             ]
 
         return metadata
@@ -174,21 +173,19 @@ class MultiSourceRSSScraper:
 
     async def scrape_all(self) -> list[ScrapedArticle]:
         """Scrape all configured feeds and deduplicate results."""
-        scrapers = [
-            RSSFeedScraper(feed, timeout=self.timeout)
-            for feed in self.feeds
-        ]
+        scrapers = [RSSFeedScraper(feed, timeout=self.timeout) for feed in self.feeds]
 
         tasks = [scraper.scrape() for scraper in scrapers]
         results = await asyncio.gather(*tasks, return_exceptions=True)
 
         all_articles: list[ScrapedArticle] = []
 
-        for feed, result in zip(self.feeds, results):
-            if isinstance(result, Exception):
+        for feed, result in zip(self.feeds, results, strict=True):
+            if isinstance(result, BaseException):
                 logger.error(f"Scraper failed for {feed.name}: {result}")
                 continue
 
+            # result is now guaranteed to be list[ScrapedArticle]
             for article in result:
                 normalized_url = article.url.lower()
                 if normalized_url not in self._seen_urls:
@@ -196,7 +193,7 @@ class MultiSourceRSSScraper:
                     all_articles.append(article)
 
         all_articles.sort(
-            key=lambda a: a.published_at or datetime.min.replace(tzinfo=timezone.utc),
+            key=lambda a: a.published_at or datetime.min.replace(tzinfo=UTC),
             reverse=True,
         )
 

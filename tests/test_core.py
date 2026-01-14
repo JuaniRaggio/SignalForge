@@ -1,7 +1,5 @@
 """Tests for core module."""
 
-import pytest
-
 from signalforge.core.config import Settings, get_settings
 from signalforge.core.security import (
     create_access_token,

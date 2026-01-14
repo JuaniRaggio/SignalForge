@@ -42,9 +42,7 @@ class BaseAPIClient(ABC):
                         self.base_delay * (2**attempt),
                         self.max_delay,
                     )
-                    logger.warning(
-                        f"Attempt {attempt + 1} failed: {e}. Retrying in {delay}s..."
-                    )
+                    logger.warning(f"Attempt {attempt + 1} failed: {e}. Retrying in {delay}s...")
                     await asyncio.sleep(delay)
 
         if last_exception:

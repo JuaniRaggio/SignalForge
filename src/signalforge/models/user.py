@@ -46,7 +46,7 @@ class User(Base, TimestampMixin):
         nullable=False,
     )
     user_type: Mapped[UserType] = mapped_column(
-        Enum(UserType),
+        Enum(UserType, values_callable=lambda x: [e.value for e in x]),
         default=UserType.CASUAL_OBSERVER,
         nullable=False,
     )
