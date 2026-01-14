@@ -17,7 +17,7 @@ async def get_redis() -> Redis:
     """Get Redis client instance."""
     global _redis_client
     if _redis_client is None:
-        _redis_client = redis.from_url(
+        _redis_client = redis.from_url(  # type: ignore[no-untyped-call]
             settings.redis_url,
             encoding="utf-8",
             decode_responses=True,

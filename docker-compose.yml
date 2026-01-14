@@ -7,7 +7,7 @@ services:
       POSTGRES_PASSWORD: signalforge_dev
       POSTGRES_DB: signalforge
     ports:
-      - "5432:5432"
+      - "5434:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./docker/init_extensions.sql:/docker-entrypoint-initdb.d/init_extensions.sql:ro
@@ -22,7 +22,7 @@ services:
     image: redis:7-alpine
     container_name: signalforge-redis
     ports:
-      - "6379:6379"
+      - "6380:6379"
     volumes:
       - redis_data:/data
     healthcheck:

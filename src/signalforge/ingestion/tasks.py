@@ -30,7 +30,7 @@ def run_async(coro: Coroutine[Any, Any, T]) -> T:
         loop.close()
 
 
-@shared_task(bind=True, name="signalforge.ingestion.tasks.ingest_daily_prices")  # type: ignore[misc]
+@shared_task(bind=True, name="signalforge.ingestion.tasks.ingest_daily_prices")  # type: ignore[untyped-decorator]
 def ingest_daily_prices(
     _self: Any,  # noqa: ARG001
     symbols: list[str] | None = None,
@@ -87,7 +87,7 @@ async def _ingest_daily_prices_async(symbols: list[str]) -> dict[str, Any]:
     return results
 
 
-@shared_task(bind=True, name="signalforge.ingestion.tasks.ingest_historical_backfill")  # type: ignore[misc]
+@shared_task(bind=True, name="signalforge.ingestion.tasks.ingest_historical_backfill")  # type: ignore[untyped-decorator]
 def ingest_historical_backfill(
     _self: Any,  # noqa: ARG001
     symbol: str,
@@ -139,7 +139,7 @@ async def _ingest_historical_backfill_async(
     return results
 
 
-@shared_task(bind=True, name="signalforge.ingestion.tasks.scrape_news_rss")  # type: ignore[misc]
+@shared_task(bind=True, name="signalforge.ingestion.tasks.scrape_news_rss")  # type: ignore[untyped-decorator]
 def scrape_news_rss(_self: Any) -> dict[str, Any]:  # noqa: ARG001
     """Scrape news from configured RSS feeds."""
     return run_async(_scrape_news_rss_async())
