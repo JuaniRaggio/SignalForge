@@ -8,8 +8,15 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from signalforge.api.dependencies.auth import get_current_active_user
+from redis.asyncio import Redis
+
+from signalforge.api.dependencies.auth import (
+    get_current_active_user,
+    oauth2_scheme,
+)
 from signalforge.api.dependencies.database import get_db
+from signalforge.api.dependencies.rate_limiting import rate_limit_auth_endpoints
+from signalforge.core.redis import get_redis
 from signalforge.core.security import (
     create_access_token,
     create_refresh_token,
@@ -18,6 +25,7 @@ from signalforge.core.security import (
     verify_password,
     verify_token_type,
 )
+from signalforge.core.token_blacklist import add_token_to_blacklist
 from signalforge.models.user import User
 from signalforge.schemas.auth import (
     RefreshTokenRequest,
@@ -33,6 +41,7 @@ router = APIRouter()
     "/register",
     response_model=UserResponse,
     status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(rate_limit_auth_endpoints)],
 )
 async def register(
     user_data: UserRegister,
@@ -61,7 +70,11 @@ async def register(
         )
 
 
-@router.post("/login", response_model=TokenResponse)
+@router.post(
+    "/login",
+    response_model=TokenResponse,
+    dependencies=[Depends(rate_limit_auth_endpoints)],
+)
 async def login(
     form_data: Annotated[OAuth2PasswordRequestForm, Depends()],
     db: Annotated[AsyncSession, Depends(get_db)],
@@ -142,3 +155,38 @@ async def get_current_user_info(
 ) -> User:
     """Get current user information."""
     return current_user
+
+
+@router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)
+async def logout(
+    token: Annotated[str, Depends(oauth2_scheme)],
+    redis_client: Annotated[Redis, Depends(get_redis)],
+) -> None:
+    """
+    Logout user by blacklisting the current access token.
+
+    The token will be invalidated and cannot be used for further requests.
+    """
+    payload = decode_token(token)
+    if payload is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid token",
+        )
+
+    exp = payload.get("exp")
+    if exp is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid token",
+        )
+
+    from datetime import datetime
+
+    current_time = datetime.now().timestamp()
+    remaining_seconds = int(exp - current_time)
+
+    if remaining_seconds > 0:
+        await add_token_to_blacklist(redis_client, token, remaining_seconds)
+
+    return None
