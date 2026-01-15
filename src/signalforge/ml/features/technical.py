@@ -127,9 +127,7 @@ def compute_sma(df: pl.DataFrame, period: int, column: str = "close") -> pl.Data
 
     col_name = f"sma_{period}" if column == "close" else f"{column}_sma_{period}"
 
-    return df.with_columns(
-        pl.col(column).rolling_mean(window_size=period).alias(col_name)
-    )
+    return df.with_columns(pl.col(column).rolling_mean(window_size=period).alias(col_name))
 
 
 def compute_ema(df: pl.DataFrame, period: int, column: str = "close") -> pl.DataFrame:
@@ -152,9 +150,7 @@ def compute_ema(df: pl.DataFrame, period: int, column: str = "close") -> pl.Data
     col_name = f"ema_{period}" if column == "close" else f"{column}_ema_{period}"
 
     # EMA uses exponential smoothing with alpha = 2 / (period + 1)
-    return df.with_columns(
-        pl.col(column).ewm_mean(span=period, adjust=False).alias(col_name)
-    )
+    return df.with_columns(pl.col(column).ewm_mean(span=period, adjust=False).alias(col_name))
 
 
 def compute_rsi(df: pl.DataFrame, period: int = 14) -> pl.DataFrame:
@@ -177,20 +173,12 @@ def compute_rsi(df: pl.DataFrame, period: int = 14) -> pl.DataFrame:
         raise ValueError("Column 'close' not found in DataFrame")
 
     # Calculate price changes
-    df_with_delta = df.with_columns(
-        (pl.col("close") - pl.col("close").shift(1)).alias("delta")
-    )
+    df_with_delta = df.with_columns((pl.col("close") - pl.col("close").shift(1)).alias("delta"))
 
     # Separate gains and losses
     df_with_gains = df_with_delta.with_columns(
-        pl.when(pl.col("delta") > 0)
-        .then(pl.col("delta"))
-        .otherwise(0.0)
-        .alias("gain"),
-        pl.when(pl.col("delta") < 0)
-        .then(-pl.col("delta"))
-        .otherwise(0.0)
-        .alias("loss"),
+        pl.when(pl.col("delta") > 0).then(pl.col("delta")).otherwise(0.0).alias("gain"),
+        pl.when(pl.col("delta") < 0).then(-pl.col("delta")).otherwise(0.0).alias("loss"),
     )
 
     # Calculate average gains and losses using EMA
@@ -203,9 +191,7 @@ def compute_rsi(df: pl.DataFrame, period: int = 14) -> pl.DataFrame:
     result = df_with_avg.with_columns(
         pl.when(pl.col("avg_loss") == 0)
         .then(100.0)
-        .otherwise(
-            100.0 - (100.0 / (1.0 + (pl.col("avg_gain") / pl.col("avg_loss"))))
-        )
+        .otherwise(100.0 - (100.0 / (1.0 + (pl.col("avg_gain") / pl.col("avg_loss")))))
         .alias(f"rsi_{period}")
     )
 
@@ -248,9 +234,7 @@ def compute_macd(
     )
 
     # Calculate MACD line
-    df_with_macd = df_with_ema.with_columns(
-        (pl.col("ema_fast") - pl.col("ema_slow")).alias("macd")
-    )
+    df_with_macd = df_with_ema.with_columns((pl.col("ema_fast") - pl.col("ema_slow")).alias("macd"))
 
     # Calculate signal line
     df_with_signal = df_with_macd.with_columns(
@@ -302,12 +286,8 @@ def compute_bollinger_bands(
 
     # Calculate upper and lower bands
     result = df_with_std.with_columns(
-        (pl.col("bb_middle") + (pl.col("rolling_std") * std_multiplier)).alias(
-            "bb_upper"
-        ),
-        (pl.col("bb_middle") - (pl.col("rolling_std") * std_multiplier)).alias(
-            "bb_lower"
-        ),
+        (pl.col("bb_middle") + (pl.col("rolling_std") * std_multiplier)).alias("bb_upper"),
+        (pl.col("bb_middle") - (pl.col("rolling_std") * std_multiplier)).alias("bb_lower"),
     )
 
     # Drop intermediate columns
@@ -352,9 +332,7 @@ def compute_atr(df: pl.DataFrame, period: int = 14) -> pl.DataFrame:
 
     # Calculate ATR using EMA of True Range
     result = df_with_tr_max.with_columns(
-        pl.col("true_range")
-        .ewm_mean(span=period, adjust=False)
-        .alias(f"atr_{period}")
+        pl.col("true_range").ewm_mean(span=period, adjust=False).alias(f"atr_{period}")
     )
 
     # Drop intermediate columns
