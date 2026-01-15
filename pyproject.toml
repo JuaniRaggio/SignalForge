@@ -37,6 +37,8 @@ dependencies = [
     "email-validator>=2.1.0",
     "structlog>=24.1.0",
     "tenacity>=8.2.0",
+    "mlflow>=2.10.0",
+    "statsmodels>=0.14.0",
 ]
 
 [project.optional-dependencies]
@@ -81,6 +83,9 @@ ignore = [
     "B904",   # raise without from inside except
 ]
 
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["ARG002"]  # Allow unused fixture arguments in tests
+
 [tool.ruff.lint.isort]
 known-first-party = ["signalforge"]
 
@@ -99,6 +104,8 @@ module = [
     "celery.*",
     "redis.*",
     "polars.*",
+    "mlflow.*",
+    "statsmodels.*",
 ]
 ignore_missing_imports = true
 
