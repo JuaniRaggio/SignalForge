@@ -1,6 +1,6 @@
 """Tests for data ingestion components."""
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import polars as pl
@@ -53,7 +53,7 @@ class TestScrapedArticle:
             url="https://example.com/article",
             title="Test Article",
             source="test_source",
-            published_at=datetime(2024, 1, 15, 10, 0, 0, tzinfo=timezone.utc),
+            published_at=datetime(2024, 1, 15, 10, 0, 0, tzinfo=UTC),
             content="Full article content",
             summary="Article summary",
             metadata={"author": "Test Author"},
@@ -280,7 +280,7 @@ class TestYahooFinanceClient:
         mock_df = pl.DataFrame(
             {
                 "symbol": ["AAPL"],
-                "timestamp": [datetime(2024, 1, 15, tzinfo=timezone.utc)],
+                "timestamp": [datetime(2024, 1, 15, tzinfo=UTC)],
                 "open": [150.0],
                 "high": [155.0],
                 "low": [148.0],
@@ -289,7 +289,7 @@ class TestYahooFinanceClient:
             }
         )
 
-        async def mock_fetch_data(symbol: str, **kwargs) -> pl.DataFrame:
+        async def mock_fetch_data(symbol: str, **_kwargs: str) -> pl.DataFrame:
             if symbol == "INVALID":
                 raise ExternalAPIError("Failed", source="yahoo")
             return mock_df

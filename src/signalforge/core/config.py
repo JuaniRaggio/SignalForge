@@ -3,7 +3,7 @@
 from functools import lru_cache
 from typing import Literal
 
-from pydantic import field_validator
+from pydantic import ValidationInfo, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -52,7 +52,7 @@ class Settings(BaseSettings):
 
     @field_validator("jwt_secret_key")
     @classmethod
-    def validate_jwt_secret_key(cls, v: str, info) -> str:
+    def validate_jwt_secret_key(cls, v: str, info: ValidationInfo) -> str:
         """Validate JWT secret key is not using default value in production."""
         app_env = info.data.get("app_env", "development")
         if app_env == "production" and v == "your-super-secret-key-change-in-production":

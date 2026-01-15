@@ -1,6 +1,6 @@
 """Tests for news endpoints."""
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import pytest
 from httpx import AsyncClient
@@ -35,7 +35,7 @@ async def insert_test_articles(
     source: str = "test_source",
 ) -> None:
     """Insert test news articles into the database."""
-    base_time = datetime(2024, 1, 15, 10, 0, 0, tzinfo=timezone.utc)
+    base_time = datetime(2024, 1, 15, 10, 0, 0, tzinfo=UTC)
 
     for i in range(count):
         article = NewsArticle(
@@ -48,7 +48,7 @@ async def insert_test_articles(
                 base_time.day,
                 base_time.hour + i,
                 base_time.minute,
-                tzinfo=timezone.utc,
+                tzinfo=UTC,
             ),
             summary=f"This is a summary for test article {i}",
             metadata_={"author": "Test Author", "tags": ["finance", "market"]},
@@ -70,7 +70,7 @@ async def test_get_news_requires_auth(client: AsyncClient) -> None:
 @pytest.mark.asyncio
 async def test_get_news_empty(
     client: AsyncClient,
-    db_session: AsyncSession,
+    _db_session: AsyncSession,
 ) -> None:
     """Test getting news when no articles exist."""
     token = await create_test_user_and_get_token(client)
@@ -204,7 +204,7 @@ async def test_get_news_with_offset(
 @pytest.mark.asyncio
 async def test_get_news_limit_validation(
     client: AsyncClient,
-    db_session: AsyncSession,
+    _db_session: AsyncSession,
 ) -> None:
     """Test that limit parameter is validated."""
     token = await create_test_user_and_get_token(client)
@@ -225,7 +225,7 @@ async def test_get_news_limit_validation(
 @pytest.mark.asyncio
 async def test_get_news_offset_validation(
     client: AsyncClient,
-    db_session: AsyncSession,
+    _db_session: AsyncSession,
 ) -> None:
     """Test that offset parameter is validated."""
     token = await create_test_user_and_get_token(client)

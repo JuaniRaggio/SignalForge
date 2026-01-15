@@ -1,6 +1,5 @@
 """Rate limiting utilities using Redis."""
 
-from datetime import datetime
 from typing import Annotated
 
 from fastapi import Depends, HTTPException, Request, status

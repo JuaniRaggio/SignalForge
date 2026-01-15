@@ -1,6 +1,5 @@
 """Token blacklist management using Redis."""
 
-from datetime import datetime, timedelta
 
 from redis.asyncio import Redis
 
@@ -42,7 +41,7 @@ async def is_token_blacklisted(redis_client: Redis, token: str) -> bool:
     """
     key = f"blacklist:token:{token}"
     result = await redis_client.exists(key)
-    return result > 0
+    return bool(result > 0)
 
 
 async def remove_token_from_blacklist(redis_client: Redis, token: str) -> None:
