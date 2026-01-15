@@ -1,55 +1,72 @@
-"""Base class for API clients."""
+"""Base class for API clients with retry and circuit breaker support."""
 
-import asyncio
-import logging
+from __future__ import annotations
+
 from abc import ABC, abstractmethod
 from typing import Any
 
 import polars as pl
 
-logger = logging.getLogger(__name__)
+from signalforge.core.logging import LoggerMixin, get_logger
+from signalforge.core.retry import (
+    CircuitBreaker,
+    CircuitBreakerConfig,
+    RetryConfig,
+    get_circuit_breaker,
+)
+
+logger = get_logger(__name__)
 
 
-class BaseAPIClient(ABC):
-    """Abstract base class for external API clients."""
+class BaseAPIClient(ABC, LoggerMixin):
+    """Abstract base class for external API clients.
+
+    Provides:
+    - Structured logging via LoggerMixin
+    - Configurable retry with exponential backoff
+    - Optional circuit breaker protection
+    """
 
     def __init__(
         self,
-        max_retries: int = 3,
-        base_delay: float = 1.0,
-        max_delay: float = 60.0,
+        *,
+        retry_config: RetryConfig | None = None,
+        circuit_breaker_name: str | None = None,
+        circuit_breaker_config: CircuitBreakerConfig | None = None,
     ) -> None:
-        self.max_retries = max_retries
-        self.base_delay = base_delay
-        self.max_delay = max_delay
+        """Initialize API client.
 
-    async def _retry_with_backoff(
-        self,
-        func: Any,
-        *args: Any,
-        **kwargs: Any,
-    ) -> Any:
-        """Execute function with exponential backoff retry."""
-        last_exception: Exception | None = None
+        Args:
+            retry_config: Configuration for retry behavior.
+            circuit_breaker_name: Name for circuit breaker (enables if provided).
+            circuit_breaker_config: Configuration for circuit breaker.
+        """
+        self.retry_config = retry_config or RetryConfig()
+        self._circuit_breaker: CircuitBreaker | None = None
 
-        for attempt in range(self.max_retries):
-            try:
-                return await func(*args, **kwargs)
-            except Exception as e:
-                last_exception = e
-                if attempt < self.max_retries - 1:
-                    delay = min(
-                        self.base_delay * (2**attempt),
-                        self.max_delay,
-                    )
-                    logger.warning(f"Attempt {attempt + 1} failed: {e}. Retrying in {delay}s...")
-                    await asyncio.sleep(delay)
+        if circuit_breaker_name:
+            self._circuit_breaker = get_circuit_breaker(
+                circuit_breaker_name,
+                circuit_breaker_config,
+            )
 
-        if last_exception:
-            raise last_exception
-        raise RuntimeError("Unexpected error in retry logic")
+    @property
+    def circuit_breaker(self) -> CircuitBreaker | None:
+        """Get the circuit breaker instance if configured."""
+        return self._circuit_breaker
 
     @abstractmethod
     async def fetch_data(self, symbol: str, **kwargs: Any) -> pl.DataFrame:
-        """Fetch data for a symbol. Must be implemented by subclasses."""
+        """Fetch data for a symbol. Must be implemented by subclasses.
+
+        Args:
+            symbol: The symbol to fetch data for.
+            **kwargs: Additional parameters for the fetch operation.
+
+        Returns:
+            A Polars DataFrame containing the fetched data.
+
+        Raises:
+            ExternalAPIError: If the fetch operation fails.
+        """
         pass

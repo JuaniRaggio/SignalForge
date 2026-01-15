@@ -6,17 +6,30 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from signalforge.api.middleware.exception_handler import setup_exception_handlers
+from signalforge.api.middleware.logging import LoggingMiddleware
 from signalforge.api.routes import auth, health, market, news
 from signalforge.core.config import get_settings
+from signalforge.core.logging import configure_logging, get_logger
 from signalforge.core.redis import close_redis
 
 settings = get_settings()
+
+# Configure structured logging
+configure_logging(
+    json_logs=settings.is_production,
+    log_level="DEBUG" if settings.debug else "INFO",
+)
+
+logger = get_logger(__name__)
 
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI) -> AsyncGenerator[None, None]:
     """Application lifespan manager."""
+    logger.info("application_startup", app_name=settings.app_name, env=settings.app_env)
     yield
+    logger.info("application_shutdown")
     await close_redis()
 
 
@@ -31,6 +44,7 @@ def create_app() -> FastAPI:
         lifespan=lifespan,
     )
 
+    # Add CORS middleware
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.cors_allowed_origins,
@@ -38,6 +52,12 @@ def create_app() -> FastAPI:
         allow_methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
         allow_headers=["*"],
     )
+
+    # Add structured logging middleware
+    app.add_middleware(LoggingMiddleware)
+
+    # Setup exception handlers for structured error responses
+    setup_exception_handlers(app)
 
     app.include_router(health.router, tags=["Health"])
     app.include_router(
