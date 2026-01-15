@@ -239,8 +239,8 @@ class TestYahooFinanceClient:
     def test_client_initialization(self) -> None:
         """Test client initialization with default parameters."""
         client = YahooFinanceClient()
-        assert client._max_retries == 3
-        assert client._base_delay == 1.0
+        assert client.max_retries == 3
+        assert client.base_delay == 1.0
         client.close()
 
     def test_client_custom_parameters(self) -> None:
@@ -250,8 +250,8 @@ class TestYahooFinanceClient:
             base_delay=2.0,
             max_delay=120.0,
         )
-        assert client._max_retries == 5
-        assert client._base_delay == 2.0
+        assert client.max_retries == 5
+        assert client.base_delay == 2.0
         client.close()
 
     @pytest.mark.asyncio
