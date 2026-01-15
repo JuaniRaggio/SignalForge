@@ -76,7 +76,7 @@ async def test_get_price_history_no_data(
         headers={"Authorization": f"Bearer {token}"},
     )
     assert response.status_code == 404
-    assert "No price data found" in response.json()["detail"]
+    assert "No price data found" in response.json()["error"]["message"]
 
 
 @pytest.mark.asyncio
@@ -154,13 +154,13 @@ async def test_get_price_history_limit_validation(
         "/api/v1/market/prices/AAPL?limit=0",
         headers={"Authorization": f"Bearer {token}"},
     )
-    assert response.status_code == 422
+    assert response.status_code == 400
 
     response = await client.get(
         "/api/v1/market/prices/AAPL?limit=1001",
         headers={"Authorization": f"Bearer {token}"},
     )
-    assert response.status_code == 422
+    assert response.status_code == 400
 
 
 @pytest.mark.asyncio

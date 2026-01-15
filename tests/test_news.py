@@ -211,13 +211,13 @@ async def test_get_news_limit_validation(
         "/api/v1/news/?limit=0",
         headers={"Authorization": f"Bearer {token}"},
     )
-    assert response.status_code == 422
+    assert response.status_code == 400
 
     response = await client.get(
         "/api/v1/news/?limit=101",
         headers={"Authorization": f"Bearer {token}"},
     )
-    assert response.status_code == 422
+    assert response.status_code == 400
 
 
 @pytest.mark.asyncio
@@ -231,7 +231,7 @@ async def test_get_news_offset_validation(
         "/api/v1/news/?offset=-1",
         headers={"Authorization": f"Bearer {token}"},
     )
-    assert response.status_code == 422
+    assert response.status_code == 400
 
 
 @pytest.mark.asyncio

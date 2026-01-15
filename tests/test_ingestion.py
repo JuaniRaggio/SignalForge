@@ -238,20 +238,26 @@ class TestYahooFinanceClient:
 
     def test_client_initialization(self) -> None:
         """Test client initialization with default parameters."""
+        from signalforge.core.retry import YAHOO_FINANCE_RETRY
+
         client = YahooFinanceClient()
-        assert client.max_retries == 3
-        assert client.base_delay == 1.0
+        # Default config uses YAHOO_FINANCE_RETRY
+        assert client.retry_config.max_attempts == YAHOO_FINANCE_RETRY.max_attempts
+        assert client.retry_config.initial_delay == YAHOO_FINANCE_RETRY.initial_delay
         client.close()
 
     def test_client_custom_parameters(self) -> None:
         """Test client initialization with custom parameters."""
-        client = YahooFinanceClient(
-            max_retries=5,
-            base_delay=2.0,
+        from signalforge.core.retry import RetryConfig
+
+        custom_config = RetryConfig(
+            max_attempts=5,
+            initial_delay=2.0,
             max_delay=120.0,
         )
-        assert client.max_retries == 5
-        assert client.base_delay == 2.0
+        client = YahooFinanceClient(retry_config=custom_config)
+        assert client.retry_config.max_attempts == 5
+        assert client.retry_config.initial_delay == 2.0
         client.close()
 
     @pytest.mark.asyncio
