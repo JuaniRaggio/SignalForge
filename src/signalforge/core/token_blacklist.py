@@ -1,6 +1,5 @@
 """Token blacklist management using Redis."""
 
-
 from redis.asyncio import Redis
 
 from signalforge.core.config import get_settings

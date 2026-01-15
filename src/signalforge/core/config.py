@@ -61,9 +61,7 @@ class Settings(BaseSettings):
                 "Set the JWT_SECRET_KEY environment variable to a secure random string."
             )
         if app_env == "production" and len(v) < 32:
-            raise ValueError(
-                "JWT_SECRET_KEY must be at least 32 characters long in production."
-            )
+            raise ValueError("JWT_SECRET_KEY must be at least 32 characters long in production.")
         return v
 
     @property
