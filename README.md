@@ -1,8 +1,13 @@
-# mkt-PreD
-AI-based market forecasting tool
+# SignalForge
+market forecasting tool
 
 # Architecture and technologies
 ---
+
+> [!NOTE]
+> I decided to use python since most AI and ML libraries are available easily
+> also it is way faster to develop
+
 ## Concurrency -> Go
 ---
 Goroutines makes this election almost indisputable.
