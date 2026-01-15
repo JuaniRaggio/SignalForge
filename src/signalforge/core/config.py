@@ -50,6 +50,11 @@ class Settings(BaseSettings):
     rate_limit_per_minute: int = 5
     rate_limit_window_seconds: int = 60
 
+    # MLflow
+    mlflow_tracking_uri: str = "http://localhost:5000"
+    mlflow_experiment_name: str = "signalforge"
+    mlflow_artifact_location: str = "./mlartifacts"
+
     @field_validator("jwt_secret_key")
     @classmethod
     def validate_jwt_secret_key(cls, v: str, info: ValidationInfo) -> str:
