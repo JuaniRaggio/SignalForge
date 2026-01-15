@@ -70,7 +70,6 @@ async def test_get_news_requires_auth(client: AsyncClient) -> None:
 @pytest.mark.asyncio
 async def test_get_news_empty(
     client: AsyncClient,
-    _db_session: AsyncSession,
 ) -> None:
     """Test getting news when no articles exist."""
     token = await create_test_user_and_get_token(client)
@@ -204,7 +203,6 @@ async def test_get_news_with_offset(
 @pytest.mark.asyncio
 async def test_get_news_limit_validation(
     client: AsyncClient,
-    _db_session: AsyncSession,
 ) -> None:
     """Test that limit parameter is validated."""
     token = await create_test_user_and_get_token(client)
@@ -225,7 +223,6 @@ async def test_get_news_limit_validation(
 @pytest.mark.asyncio
 async def test_get_news_offset_validation(
     client: AsyncClient,
-    _db_session: AsyncSession,
 ) -> None:
     """Test that offset parameter is validated."""
     token = await create_test_user_and_get_token(client)

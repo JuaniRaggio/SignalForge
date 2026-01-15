@@ -67,7 +67,6 @@ async def test_get_price_history_requires_auth(client: AsyncClient) -> None:
 @pytest.mark.asyncio
 async def test_get_price_history_no_data(
     client: AsyncClient,
-    _db_session: AsyncSession,
 ) -> None:
     """Test getting price history for a symbol with no data."""
     token = await create_test_user_and_get_token(client)
@@ -147,7 +146,6 @@ async def test_get_price_history_with_limit(
 @pytest.mark.asyncio
 async def test_get_price_history_limit_validation(
     client: AsyncClient,
-    _db_session: AsyncSession,
 ) -> None:
     """Test that limit parameter is validated."""
     token = await create_test_user_and_get_token(client)
@@ -175,7 +173,6 @@ async def test_get_available_symbols_requires_auth(client: AsyncClient) -> None:
 @pytest.mark.asyncio
 async def test_get_available_symbols_empty(
     client: AsyncClient,
-    _db_session: AsyncSession,
 ) -> None:
     """Test getting symbols when no data exists."""
     token = await create_test_user_and_get_token(client)
