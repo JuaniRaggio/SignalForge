@@ -8,11 +8,11 @@ This module provides utilities for:
 
 from __future__ import annotations
 
+from collections.abc import Generator
 from contextlib import contextmanager
-from typing import TYPE_CHECKING, Any, Generator
+from typing import TYPE_CHECKING, Any
 
 import mlflow
-from mlflow.tracking import MlflowClient
 
 from signalforge.core.config import get_settings
 from signalforge.core.logging import get_logger
@@ -98,7 +98,8 @@ def log_params(params: dict[str, Any]) -> None:
         RuntimeError: If no active run exists.
         Exception: If parameter logging fails.
     """
-    if mlflow.active_run() is None:
+    active_run = mlflow.active_run()
+    if active_run is None:
         error_msg = "No active MLflow run. Use start_run() context manager first."
         logger.error("log_params_failed", error=error_msg)
         raise RuntimeError(error_msg)
@@ -110,7 +111,7 @@ def log_params(params: dict[str, Any]) -> None:
         logger.debug(
             "params_logged",
             param_count=len(params),
-            run_id=mlflow.active_run().info.run_id,
+            run_id=active_run.info.run_id,
         )
     except Exception as e:
         logger.error(
@@ -133,7 +134,8 @@ def log_metrics(metrics: dict[str, float], step: int | None = None) -> None:
         RuntimeError: If no active run exists.
         Exception: If metric logging fails.
     """
-    if mlflow.active_run() is None:
+    active_run = mlflow.active_run()
+    if active_run is None:
         error_msg = "No active MLflow run. Use start_run() context manager first."
         logger.error("log_metrics_failed", error=error_msg)
         raise RuntimeError(error_msg)
@@ -144,7 +146,7 @@ def log_metrics(metrics: dict[str, float], step: int | None = None) -> None:
             "metrics_logged",
             metric_count=len(metrics),
             step=step,
-            run_id=mlflow.active_run().info.run_id,
+            run_id=active_run.info.run_id,
         )
     except Exception as e:
         logger.error(
@@ -176,7 +178,8 @@ def log_model(
         RuntimeError: If no active run exists.
         Exception: If model logging fails.
     """
-    if mlflow.active_run() is None:
+    active_run = mlflow.active_run()
+    if active_run is None:
         error_msg = "No active MLflow run. Use start_run() context manager first."
         logger.error("log_model_failed", error=error_msg)
         raise RuntimeError(error_msg)
@@ -196,54 +199,54 @@ def log_model(
 
         # Use sklearn flavor for scikit-learn models
         if "sklearn" in model_module:
-            import mlflow.sklearn
+            from mlflow import sklearn as mlflow_sklearn
 
-            mlflow.sklearn.log_model(
+            mlflow_sklearn.log_model(
                 sk_model=model,
                 artifact_path=artifact_path,
                 registered_model_name=registered_model_name,
             )
         # Use pytorch flavor for PyTorch models
         elif "torch" in model_module:
-            import mlflow.pytorch
+            from mlflow import pytorch as mlflow_pytorch
 
-            mlflow.pytorch.log_model(
+            mlflow_pytorch.log_model(
                 pytorch_model=model,
                 artifact_path=artifact_path,
                 registered_model_name=registered_model_name,
             )
         # Use tensorflow flavor for TensorFlow/Keras models
         elif "tensorflow" in model_module or "keras" in model_module:
-            import mlflow.tensorflow
+            from mlflow import tensorflow as mlflow_tensorflow
 
-            mlflow.tensorflow.log_model(
+            mlflow_tensorflow.log_model(
                 model=model,
                 artifact_path=artifact_path,
                 registered_model_name=registered_model_name,
             )
         # Use xgboost flavor for XGBoost models
         elif "xgboost" in model_module:
-            import mlflow.xgboost
+            from mlflow import xgboost as mlflow_xgboost
 
-            mlflow.xgboost.log_model(
+            mlflow_xgboost.log_model(
                 xgb_model=model,
                 artifact_path=artifact_path,
                 registered_model_name=registered_model_name,
             )
         # Use lightgbm flavor for LightGBM models
         elif "lightgbm" in model_module:
-            import mlflow.lightgbm
+            from mlflow import lightgbm as mlflow_lightgbm
 
-            mlflow.lightgbm.log_model(
+            mlflow_lightgbm.log_model(
                 lgb_model=model,
                 artifact_path=artifact_path,
                 registered_model_name=registered_model_name,
             )
         # Fallback to generic pyfunc flavor
         else:
-            import mlflow.pyfunc
+            from mlflow import pyfunc as mlflow_pyfunc
 
-            mlflow.pyfunc.log_model(
+            mlflow_pyfunc.log_model(
                 artifact_path=artifact_path,
                 python_model=model,
                 registered_model_name=registered_model_name,
@@ -254,7 +257,7 @@ def log_model(
             artifact_path=artifact_path,
             model_type=model_type,
             registered_model_name=registered_model_name,
-            run_id=mlflow.active_run().info.run_id,
+            run_id=active_run.info.run_id,
         )
 
     except Exception as e:
