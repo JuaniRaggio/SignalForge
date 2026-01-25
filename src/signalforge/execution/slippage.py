@@ -132,6 +132,7 @@ def calculate_execution_risk(adv_ratio: float) -> Literal["low", "medium", "high
     if adv_ratio < 0:
         raise ValueError("adv_ratio cannot be negative")
 
+    risk: Literal["low", "medium", "high"]
     if adv_ratio < LOW_RISK_THRESHOLD:
         risk = "low"
     elif adv_ratio < MEDIUM_RISK_THRESHOLD:
@@ -238,9 +239,6 @@ def estimate_slippage(
             adv_ratio=0.0,
             execution_risk="low",
         )
-
-    # Calculate order size in shares
-    order_size_shares = order_size_usd / current_price
 
     # Calculate ADV dollar volume
     adv_dollar_volume = avg_daily_volume * current_price

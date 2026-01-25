@@ -114,11 +114,11 @@ def calculate_avg_daily_volume(df: pl.DataFrame, window: int = 20) -> float:
     recent_data = df.tail(window) if df.height >= window else df
 
     # Calculate mean volume
-    avg_volume = float(recent_data["volume"].mean())
-
-    if avg_volume is None or pl.Series([avg_volume]).is_null().any():
+    mean_val = recent_data["volume"].mean()
+    if mean_val is None:
         logger.warning("calculate_avg_daily_volume returned null, using 0.0")
         return 0.0
+    avg_volume = float(mean_val)  # type: ignore[arg-type]
 
     logger.debug(
         "calculated_avg_daily_volume",
@@ -193,10 +193,7 @@ def calculate_liquidity_score(
 
     # Consistency score from volume volatility
     # Lower volatility (more consistent) is better
-    if avg_volume > 0:
-        coefficient_of_variation = volume_volatility / avg_volume
-    else:
-        coefficient_of_variation = 1.0
+    coefficient_of_variation = volume_volatility / avg_volume if avg_volume > 0 else 1.0
 
     # CV < 0.2 (20%) is excellent, CV > 1.0 (100%) is poor
     consistency_score = max(0.0, 40.0 * (1.0 - min(coefficient_of_variation, 1.0)))
@@ -274,18 +271,23 @@ def assess_liquidity(df: pl.DataFrame, symbol: str, window: int = 20) -> Liquidi
 
     # Calculate volume volatility (standard deviation)
     recent_data = df.tail(window) if df.height >= window else df
-    volume_std = float(recent_data["volume"].std())
-
-    # Handle null standard deviation (can happen with constant volume)
-    if volume_std is None or pl.Series([volume_std]).is_null().any():
+    std_val = recent_data["volume"].std()
+    if std_val is None:
         logger.warning("volume std returned null, using 0.0")
         volume_std = 0.0
+    else:
+        volume_std = float(std_val)  # type: ignore[arg-type]
 
     # Get current/average price for dollar volume calculation
-    avg_price = float(recent_data["close"].mean())
-    if avg_price is None or avg_price <= 0:
+    mean_price_val = recent_data["close"].mean()
+    if mean_price_val is None:
         logger.warning("avg_price is invalid, using 1.0 for calculation")
         avg_price = 1.0
+    else:
+        avg_price = float(mean_price_val)  # type: ignore[arg-type]
+        if avg_price <= 0:
+            logger.warning("avg_price is invalid, using 1.0 for calculation")
+            avg_price = 1.0
 
     # Calculate liquidity score
     liquidity_score = calculate_liquidity_score(
