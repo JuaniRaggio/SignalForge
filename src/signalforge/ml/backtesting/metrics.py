@@ -136,11 +136,18 @@ def calculate_sharpe_ratio(returns: pl.Series, risk_free_rate: float = 0.0) -> f
         return 0.0
 
     # Calculate mean and std of returns
-    mean_return = float(valid_returns.mean())
-    std_return = float(valid_returns.std())
+    mean_val = valid_returns.mean()
+    std_val = valid_returns.std()
+
+    # Handle None values
+    if mean_val is None or std_val is None:
+        return 0.0
+
+    mean_return = float(mean_val)  # type: ignore[arg-type]
+    std_return = float(std_val)  # type: ignore[arg-type]
 
     # If no volatility, Sharpe is undefined
-    if std_return == 0.0 or std_return is None:
+    if std_return == 0.0:
         return 0.0
 
     # Convert risk-free rate from annual to daily
@@ -189,7 +196,10 @@ def calculate_max_drawdown(equity_curve: pl.Series) -> float:
     drawdown = (valid_equity - running_max) / running_max * 100.0
 
     # Maximum drawdown is the most negative value
-    max_dd = float(drawdown.min())
+    min_val = drawdown.min()
+    if min_val is None:
+        return 0.0
+    max_dd = float(min_val)  # type: ignore[arg-type]
 
     # Return as positive number
     return abs(max_dd)
@@ -316,7 +326,10 @@ def calculate_annualized_volatility(returns: pl.Series) -> float:
     if valid_returns.len() < 2:
         return 0.0
 
-    std_return = float(valid_returns.std())
+    std_val = valid_returns.std()
+    if std_val is None:
+        return 0.0
+    std_return = float(std_val)  # type: ignore[arg-type]
 
     # Annualize volatility
     annualized_vol = std_return * (252.0**0.5) * 100.0

@@ -454,7 +454,10 @@ class BacktestEngine:
                 capital_used = position_size * position_entry_price
                 return_pct = (pnl / capital_used) * 100.0 if capital_used > 0 else 0.0
 
-                # Create trade record
+                # Create trade record (position_entry_date and position_direction are guaranteed
+                # to be set when we have an open position that we're closing)
+                assert position_entry_date is not None
+                assert position_direction is not None
                 trade = Trade(
                     entry_date=position_entry_date,
                     exit_date=timestamp,

@@ -9,7 +9,7 @@ This module tests all aspects of the backtesting functionality including:
 """
 
 from datetime import datetime, timedelta
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import polars as pl
 import pytest
@@ -649,7 +649,9 @@ class TestBacktestEngine:
         result_with_commission = engine_with_commission.run(sample_prices, simple_signals)
 
         # Results with commission should have lower returns
-        assert result_with_commission.metrics.total_return < result_no_commission.metrics.total_return
+        assert (
+            result_with_commission.metrics.total_return < result_no_commission.metrics.total_return
+        )
 
     def test_run_with_slippage(
         self, sample_prices: pl.DataFrame, simple_signals: pl.DataFrame
@@ -793,13 +795,12 @@ class TestBacktestEngine:
         with pytest.raises(ValueError, match="No matching timestamps"):
             engine.run(sample_prices, non_matching_signals)
 
-    def test_log_to_mlflow(
-        self, sample_prices: pl.DataFrame, simple_signals: pl.DataFrame
-    ) -> None:
+    def test_log_to_mlflow(self, sample_prices: pl.DataFrame, simple_signals: pl.DataFrame) -> None:
         """Test logging results to MLflow."""
-        with patch("mlflow.log_param") as mock_log_param, patch(
-            "mlflow.log_metric"
-        ) as mock_log_metric:
+        with (
+            patch("mlflow.log_param") as mock_log_param,
+            patch("mlflow.log_metric") as mock_log_metric,
+        ):
             engine = BacktestEngine()
             result = engine.run(sample_prices, simple_signals)
 
