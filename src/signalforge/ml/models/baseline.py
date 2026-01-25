@@ -16,7 +16,7 @@ BasePredictor interface.
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta
+from datetime import timedelta
 from typing import Any
 
 import polars as pl
@@ -78,17 +78,17 @@ def calculate_metrics(actual: pl.Series, predicted: pl.Series) -> dict[str, floa
     absolute_errors = errors.abs()
 
     # RMSE: Root Mean Squared Error
-    rmse = float(squared_errors.mean() ** 0.5)
+    rmse = float(squared_errors.mean() ** 0.5)  # type: ignore[operator]
 
     # MAE: Mean Absolute Error
-    mae = float(absolute_errors.mean())
+    mae = float(absolute_errors.mean())  # type: ignore[arg-type]
 
     # MAPE: Mean Absolute Percentage Error
     # Avoid division by zero by filtering out values close to zero
     non_zero_mask = actual_clean.abs() > 1e-10
     if non_zero_mask.sum() > 0:
         percentage_errors = (absolute_errors.filter(non_zero_mask) / actual_clean.filter(non_zero_mask).abs()) * 100
-        mape = float(percentage_errors.mean())
+        mape = float(percentage_errors.mean())  # type: ignore[arg-type]
     else:
         mape = float("inf")
 
@@ -240,11 +240,17 @@ class ARIMAPredictor(BasePredictor):
                 logger.debug("no_active_mlflow_run", action="skipping parameter logging")
 
             # Fit ARIMA model
-            self._model = ARIMA(
-                target_series,
-                order=self.order,
-                seasonal_order=self.seasonal_order,
-            )
+            if self.seasonal_order is not None:
+                self._model = ARIMA(
+                    target_series,
+                    order=self.order,
+                    seasonal_order=self.seasonal_order,
+                )
+            else:
+                self._model = ARIMA(
+                    target_series,
+                    order=self.order,
+                )
             self._fitted_model = self._model.fit()
 
             # Store training data for prediction continuation
@@ -567,7 +573,7 @@ class RollingMeanPredictor(BasePredictor):
 
             # Calculate mean of last 'window' values
             last_values = self._training_data[self._target_column].tail(self.window)
-            prediction_value = float(last_values.mean())
+            prediction_value = float(last_values.mean())  # type: ignore[arg-type]
 
             # Get last timestamp
             last_timestamp = self._training_data["timestamp"].max()
