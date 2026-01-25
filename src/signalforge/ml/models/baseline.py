@@ -87,7 +87,9 @@ def calculate_metrics(actual: pl.Series, predicted: pl.Series) -> dict[str, floa
     # Avoid division by zero by filtering out values close to zero
     non_zero_mask = actual_clean.abs() > 1e-10
     if non_zero_mask.sum() > 0:
-        percentage_errors = (absolute_errors.filter(non_zero_mask) / actual_clean.filter(non_zero_mask).abs()) * 100
+        percentage_errors = (
+            absolute_errors.filter(non_zero_mask) / actual_clean.filter(non_zero_mask).abs()
+        ) * 100
         mape = float(percentage_errors.mean())  # type: ignore[arg-type]
     else:
         mape = float("inf")
@@ -95,8 +97,12 @@ def calculate_metrics(actual: pl.Series, predicted: pl.Series) -> dict[str, floa
     # Direction Accuracy: Percentage of correct directional predictions
     # Calculate changes in actual and predicted values
     if len(actual_clean) > 1:
-        actual_direction = (actual_clean.slice(1) - actual_clean.slice(0, len(actual_clean) - 1)) > 0
-        predicted_direction = (predicted_clean.slice(1) - predicted_clean.slice(0, len(predicted_clean) - 1)) > 0
+        actual_direction = (
+            actual_clean.slice(1) - actual_clean.slice(0, len(actual_clean) - 1)
+        ) > 0
+        predicted_direction = (
+            predicted_clean.slice(1) - predicted_clean.slice(0, len(predicted_clean) - 1)
+        ) > 0
         direction_correct = actual_direction == predicted_direction
         direction_accuracy = float(direction_correct.sum() / len(direction_correct) * 100)
     else:
@@ -318,9 +324,7 @@ class ARIMAPredictor(BasePredictor):
                 time_diff = timedelta(days=1)
 
             # Create future timestamps
-            future_timestamps = [
-                last_timestamp + time_diff * (i + 1) for i in range(horizon)
-            ]
+            future_timestamps = [last_timestamp + time_diff * (i + 1) for i in range(horizon)]
 
             # Create prediction DataFrame
             predictions_df = pl.DataFrame(
@@ -370,9 +374,7 @@ class ARIMAPredictor(BasePredictor):
             raise ValueError("Cannot evaluate on empty DataFrame")
 
         if self._target_column not in test_df.columns:
-            raise ValueError(
-                f"Target column '{self._target_column}' not found in test DataFrame"
-            )
+            raise ValueError(f"Target column '{self._target_column}' not found in test DataFrame")
 
         logger.info("evaluating_arima_model", test_samples=test_df.height)
 
@@ -588,9 +590,7 @@ class RollingMeanPredictor(BasePredictor):
                 time_diff = timedelta(days=1)
 
             # Create future timestamps
-            future_timestamps = [
-                last_timestamp + time_diff * (i + 1) for i in range(horizon)
-            ]
+            future_timestamps = [last_timestamp + time_diff * (i + 1) for i in range(horizon)]
 
             # All predictions are the same (rolling mean)
             predictions_df = pl.DataFrame(
@@ -637,9 +637,7 @@ class RollingMeanPredictor(BasePredictor):
             raise ValueError("Cannot evaluate on empty DataFrame")
 
         if self._target_column not in test_df.columns:
-            raise ValueError(
-                f"Target column '{self._target_column}' not found in test DataFrame"
-            )
+            raise ValueError(f"Target column '{self._target_column}' not found in test DataFrame")
 
         logger.info("evaluating_rolling_mean_model", test_samples=test_df.height)
 
