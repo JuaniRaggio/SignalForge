@@ -39,6 +39,10 @@ dependencies = [
     "tenacity>=8.2.0",
     "mlflow>=2.10.0",
     "statsmodels>=0.14.0",
+    "transformers>=4.36.0",
+    "torch>=2.1.0",
+    "spacy>=3.7.0",
+    "sentence-transformers>=2.2.0",
 ]
 
 [project.optional-dependencies]
@@ -106,6 +110,10 @@ module = [
     "polars.*",
     "mlflow.*",
     "statsmodels.*",
+    "transformers.*",
+    "torch.*",
+    "spacy.*",
+    "sentence_transformers.*",
 ]
 ignore_missing_imports = true
 
