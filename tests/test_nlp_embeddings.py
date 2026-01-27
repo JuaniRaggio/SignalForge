@@ -173,6 +173,11 @@ class TestBaseEmbeddingModel:
 class TestSentenceTransformerEmbedder:
     """Tests for SentenceTransformerEmbedder class."""
 
+    @pytest.fixture(autouse=True)
+    def clear_model_cache(self) -> None:
+        """Clear model cache before each test."""
+        SentenceTransformerEmbedder._model_cache.clear()
+
     @pytest.fixture
     def mock_sentence_transformer(self) -> MagicMock:
         """Create a mock SentenceTransformer model."""
