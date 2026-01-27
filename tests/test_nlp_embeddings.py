@@ -6,7 +6,6 @@ to avoid requiring actual model downloads during testing.
 
 from __future__ import annotations
 
-import math
 import sys
 from unittest.mock import MagicMock, Mock, patch
 
@@ -317,14 +316,15 @@ class TestSentenceTransformerEmbedder:
         with pytest.raises(ValueError, match="Texts list cannot be empty"):
             embedder.encode_batch([])
 
-    @patch("sentence_transformers.SentenceTransformer")
     def test_encode_batch_with_empty_texts(
         self,
-        mock_st_class: Mock,
         mock_sentence_transformer: MagicMock,
     ) -> None:
         """Test batch encoding with some empty texts."""
         import numpy as np
+
+        # Use dimension of 4 for simplicity
+        mock_sentence_transformer.get_sentence_embedding_dimension.return_value = 4
 
         # Setup mock to return embeddings only for non-empty texts
         mock_embeddings = np.array([
@@ -332,19 +332,21 @@ class TestSentenceTransformerEmbedder:
             [0.5, 0.6, 0.7, 0.8],
         ])
         mock_sentence_transformer.encode.return_value = mock_embeddings
-        mock_st_class.return_value = mock_sentence_transformer
 
+        # Inject mock model directly
         embedder = SentenceTransformerEmbedder()
+        embedder._model = mock_sentence_transformer
+
         texts = ["Text 1", "", "Text 2", "   "]
         results = embedder.encode_batch(texts)
 
         assert len(results) == 4
         assert results[0].text == "Text 1"
-        assert results[0].embedding == [0.1, 0.2, 0.3, 0.4]
+        assert list(results[0].embedding) == pytest.approx([0.1, 0.2, 0.3, 0.4])
         assert results[1].text == ""
         assert results[1].embedding == [0.0, 0.0, 0.0, 0.0]  # Zero embedding for empty
         assert results[2].text == "Text 2"
-        assert results[2].embedding == [0.5, 0.6, 0.7, 0.8]
+        assert list(results[2].embedding) == pytest.approx([0.5, 0.6, 0.7, 0.8])
         assert results[3].text == "   "
         assert results[3].embedding == [0.0, 0.0, 0.0, 0.0]  # Zero embedding for whitespace
 

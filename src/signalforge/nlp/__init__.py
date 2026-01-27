@@ -1,8 +1,8 @@
 """Natural Language Processing module for financial text analysis.
 
 This module provides text preprocessing, sentiment analysis, named entity
-recognition, and embedding generation capabilities specifically designed
-for financial documents.
+recognition, embedding generation, and vector storage capabilities specifically
+designed for financial documents.
 """
 
 from signalforge.nlp.embeddings import (
@@ -40,6 +40,30 @@ from signalforge.nlp.sentiment import (
     analyze_financial_text,
     get_sentiment_analyzer,
 )
+from signalforge.nlp.sector_classifier import (
+    BaseSectorClassifier,
+    EmbeddingSectorClassifier,
+    SectorClassifierConfig,
+    SectorPrediction,
+    classify_sector,
+    get_all_sectors,
+    get_sector_classifier,
+)
+from signalforge.nlp.topics import (
+    BaseTopicExtractor,
+    EmbeddingTopicExtractor,
+    TopicExtractionConfig,
+    TopicExtractionResult,
+    TopicKeyword,
+    extract_keyphrases,
+    extract_topics,
+    get_topic_extractor,
+)
+from signalforge.nlp.vector_store import (
+    VectorSearchResult,
+    VectorStore,
+    VectorStoreConfig,
+)
 
 __all__ = [
     # Embeddings
@@ -66,6 +90,14 @@ __all__ = [
     "PreprocessingConfig",
     "ProcessedDocument",
     "TextPreprocessor",
+    # Sector Classification
+    "BaseSectorClassifier",
+    "EmbeddingSectorClassifier",
+    "SectorClassifierConfig",
+    "SectorPrediction",
+    "classify_sector",
+    "get_all_sectors",
+    "get_sector_classifier",
     # Sentiment Analysis
     "BaseSentimentAnalyzer",
     "FinBERTSentimentAnalyzer",
@@ -73,4 +105,17 @@ __all__ = [
     "SentimentResult",
     "analyze_financial_text",
     "get_sentiment_analyzer",
+    # Topic Extraction
+    "BaseTopicExtractor",
+    "EmbeddingTopicExtractor",
+    "TopicExtractionConfig",
+    "TopicExtractionResult",
+    "TopicKeyword",
+    "extract_keyphrases",
+    "extract_topics",
+    "get_topic_extractor",
+    # Vector Store
+    "VectorSearchResult",
+    "VectorStore",
+    "VectorStoreConfig",
 ]

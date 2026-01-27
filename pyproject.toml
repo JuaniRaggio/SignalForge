@@ -43,6 +43,7 @@ dependencies = [
     "torch>=2.1.0",
     "spacy>=3.7.0",
     "sentence-transformers>=2.2.0",
+    "pgvector>=0.2.0",
 ]
 
 [project.optional-dependencies]
@@ -114,6 +115,7 @@ module = [
     "torch.*",
     "spacy.*",
     "sentence_transformers.*",
+    "pgvector.*",
 ]
 ignore_missing_imports = true
 
