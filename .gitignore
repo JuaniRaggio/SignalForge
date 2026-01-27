@@ -73,3 +73,8 @@ Thumbs.db
 
 # Docker
 .docker/
+
+# MLflow
+mlruns/
+mlflow.db
+mlartifacts/
