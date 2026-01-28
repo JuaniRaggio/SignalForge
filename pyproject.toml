@@ -45,6 +45,7 @@ dependencies = [
     "spacy>=3.7.0",
     "sentence-transformers>=2.2.0",
     "pgvector>=0.2.0",
+    "shap>=0.42.0",
 ]
 
 [project.optional-dependencies]
@@ -119,6 +120,7 @@ module = [
     "spacy.*",
     "sentence_transformers.*",
     "pgvector.*",
+    "shap.*",
 ]
 ignore_missing_imports = true
 
