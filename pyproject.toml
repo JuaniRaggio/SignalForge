@@ -46,6 +46,7 @@ dependencies = [
     "sentence-transformers>=2.2.0",
     "pgvector>=0.2.0",
     "shap>=0.42.0",
+    "hmmlearn>=0.3.0",
 ]
 
 [project.optional-dependencies]
@@ -121,6 +122,7 @@ module = [
     "sentence_transformers.*",
     "pgvector.*",
     "shap.*",
+    "hmmlearn.*",
 ]
 ignore_missing_imports = true
 
