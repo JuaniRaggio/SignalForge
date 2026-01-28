@@ -83,6 +83,7 @@ class RegimeConfig:
         random_state: Random seed for reproducibility. Default is 42.
         n_iter: Maximum number of HMM training iterations. Default is 100.
         tol: Convergence tolerance for HMM training. Default is 0.01.
+        covariance_type: Type of covariance matrix (spherical, diag, full, tied). Default is diag.
     """
 
     n_regimes: int = 4
@@ -94,6 +95,7 @@ class RegimeConfig:
     random_state: int = 42
     n_iter: int = 100
     tol: float = 0.01
+    covariance_type: str = "diag"
 
     def __post_init__(self) -> None:
         """Validate configuration parameters."""
@@ -121,6 +123,11 @@ class RegimeConfig:
             raise ValueError(f"n_iter must be positive, got {self.n_iter}")
         if self.tol <= 0:
             raise ValueError(f"tol must be positive, got {self.tol}")
+        if self.covariance_type not in ["spherical", "diag", "full", "tied"]:
+            raise ValueError(
+                f"covariance_type must be one of spherical, diag, full, tied; "
+                f"got {self.covariance_type}"
+            )
 
 
 class RegimeDetector:
@@ -548,7 +555,7 @@ class RegimeDetector:
             # Initialize and train HMM
             self._model = GaussianHMM(
                 n_components=self.config.n_regimes,
-                covariance_type="full",
+                covariance_type=self.config.covariance_type,
                 n_iter=self.config.n_iter,
                 tol=self.config.tol,
                 random_state=self.config.random_state,
