@@ -740,11 +740,11 @@ class RegimeDetector:
         stationary_dist = stationary_dist / np.sum(stationary_dist)
 
         # Map states to regimes and aggregate probabilities
-        regime_probs: dict[Regime, float] = dict.fromkeys(Regime, 0.0)
+        regime_probs: dict[Regime, float] = {regime: 0.0 for regime in Regime}
 
         for state in range(self.config.n_regimes):
             regime = self._regime_mapping[state]
-            regime_probs[regime] += stationary_dist[state]
+            regime_probs[regime] = regime_probs[regime] + float(stationary_dist[state])
 
         logger.debug("regime_probabilities_retrieved", probabilities=regime_probs)
 
