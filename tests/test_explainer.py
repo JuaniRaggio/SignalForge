@@ -11,7 +11,6 @@ This module tests the explainer functionality including:
 from __future__ import annotations
 
 import sys
-from typing import Any
 from unittest.mock import MagicMock, Mock, patch
 
 import numpy as np
@@ -20,8 +19,8 @@ import pytest
 
 from signalforge.ml.inference.explainer import (
     BaseExplainer,
-    ExplanationResult,
     ExplainerConfig,
+    ExplanationResult,
     FeatureImportance,
     ModelExplainer,
     generate_explanation_text,
@@ -226,16 +225,15 @@ class TestModelExplainer:
             # Check that KernelExplainer was called
             mock_shap.KernelExplainer.assert_called_once()
 
-    @patch("signalforge.ml.inference.explainer.shap")
     def test_explain_single_prediction(
         self,
-        mock_shap: MagicMock,
         mock_model: MockModel,
         single_row_dataframe: pl.DataFrame,
         explainer_config: ExplainerConfig,
     ) -> None:
         """Test explaining a single prediction."""
-        # Setup mock SHAP explainer
+        # Create mock shap module
+        mock_shap = MagicMock()
         mock_explainer = MagicMock()
         mock_explainer.expected_value = 0.50
         mock_shap.KernelExplainer.return_value = mock_explainer
@@ -243,36 +241,36 @@ class TestModelExplainer:
         # Mock SHAP values
         mock_shap_values = np.array([0.08, 0.05, 0.02, 0.01])
 
-        def mock_shap_values_func(X: np.ndarray) -> np.ndarray:
+        def mock_shap_values_func(_X: np.ndarray) -> np.ndarray:
             return mock_shap_values
 
         mock_explainer.shap_values = mock_shap_values_func
 
-        explainer = ModelExplainer(explainer_config)
-        result = explainer.explain(mock_model, single_row_dataframe)
+        with patch.dict(sys.modules, {"shap": mock_shap}):
+            explainer = ModelExplainer(explainer_config)
+            result = explainer.explain(mock_model, single_row_dataframe)
 
-        # Verify result structure
-        assert isinstance(result, ExplanationResult)
-        assert result.prediction == 0.65
-        assert result.base_value == 0.50
-        assert len(result.feature_contributions) == 4
-        assert len(result.top_features) == 3  # max_features is 3
-        assert result.summary_text != ""
+            # Verify result structure
+            assert isinstance(result, ExplanationResult)
+            assert result.prediction == 0.65
+            assert result.base_value == 0.50
+            assert len(result.feature_contributions) == 4
+            assert len(result.top_features) == 3  # max_features is 3
+            assert result.summary_text != ""
 
-        # Verify feature contributions are sorted
-        importances = [fc.importance for fc in result.feature_contributions]
-        assert importances == sorted(importances, reverse=True)
+            # Verify feature contributions are sorted
+            importances = [fc.importance for fc in result.feature_contributions]
+            assert importances == sorted(importances, reverse=True)
 
-    @patch("signalforge.ml.inference.explainer.shap")
     def test_explain_batch_predictions(
         self,
-        mock_shap: MagicMock,
         mock_model: MockModel,
         sample_dataframe: pl.DataFrame,
         explainer_config: ExplainerConfig,
     ) -> None:
         """Test explaining batch predictions."""
-        # Setup mock
+        # Create mock shap module
+        mock_shap = MagicMock()
         mock_explainer = MagicMock()
         mock_explainer.expected_value = 0.50
         mock_shap.KernelExplainer.return_value = mock_explainer
@@ -282,7 +280,7 @@ class TestModelExplainer:
             [[0.08, 0.05, 0.02, 0.01], [0.03, -0.04, 0.01, 0.02], [0.06, 0.03, -0.02, 0.01]]
         )
 
-        def mock_shap_values_func(X: np.ndarray) -> np.ndarray:
+        def mock_shap_values_func(_X: np.ndarray) -> np.ndarray:
             return mock_shap_values
 
         mock_explainer.shap_values = mock_shap_values_func
@@ -290,31 +288,31 @@ class TestModelExplainer:
         # Update mock model to return multiple predictions
         mock_model.return_value = [0.65, 0.55, 0.60]
 
-        explainer = ModelExplainer(explainer_config)
-        results = explainer.explain_batch(mock_model, sample_dataframe)
+        with patch.dict(sys.modules, {"shap": mock_shap}):
+            explainer = ModelExplainer(explainer_config)
+            results = explainer.explain_batch(mock_model, sample_dataframe)
 
-        # Verify results
-        assert len(results) == 3
-        assert all(isinstance(r, ExplanationResult) for r in results)
+            # Verify results
+            assert len(results) == 3
+            assert all(isinstance(r, ExplanationResult) for r in results)
 
-        # Verify each result
-        for result in results:
-            assert result.prediction >= 0
-            assert result.base_value == 0.50
-            assert len(result.feature_contributions) == 4
-            assert len(result.top_features) <= 3
-            assert result.summary_text != ""
+            # Verify each result
+            for result in results:
+                assert result.prediction >= 0
+                assert result.base_value == 0.50
+                assert len(result.feature_contributions) == 4
+                assert len(result.top_features) <= 3
+                assert result.summary_text != ""
 
-    @patch("signalforge.ml.inference.explainer.shap")
     def test_get_feature_importance(
         self,
-        mock_shap: MagicMock,
         mock_model: MockModel,
         sample_dataframe: pl.DataFrame,
         explainer_config: ExplainerConfig,
     ) -> None:
         """Test calculating global feature importance."""
-        # Setup mock
+        # Create mock shap module
+        mock_shap = MagicMock()
         mock_explainer = MagicMock()
         mock_shap.KernelExplainer.return_value = mock_explainer
 
@@ -323,21 +321,22 @@ class TestModelExplainer:
             [[0.08, 0.05, 0.02, 0.01], [0.03, -0.04, 0.01, 0.02], [0.06, 0.03, -0.02, 0.01]]
         )
 
-        def mock_shap_values_func(X: np.ndarray) -> np.ndarray:
+        def mock_shap_values_func(_X: np.ndarray) -> np.ndarray:
             return mock_shap_values
 
         mock_explainer.shap_values = mock_shap_values_func
 
-        explainer = ModelExplainer(explainer_config)
-        importances = explainer.get_feature_importance(mock_model, sample_dataframe)
+        with patch.dict(sys.modules, {"shap": mock_shap}):
+            explainer = ModelExplainer(explainer_config)
+            importances = explainer.get_feature_importance(mock_model, sample_dataframe)
 
-        # Verify results
-        assert len(importances) == 4
-        assert all(isinstance(imp, FeatureImportance) for imp in importances)
+            # Verify results
+            assert len(importances) == 4
+            assert all(isinstance(imp, FeatureImportance) for imp in importances)
 
-        # Verify sorted by importance
-        importance_values = [imp.importance for imp in importances]
-        assert importance_values == sorted(importance_values, reverse=True)
+            # Verify sorted by importance
+            importance_values = [imp.importance for imp in importances]
+            assert importance_values == sorted(importance_values, reverse=True)
 
     def test_explain_empty_dataframe(
         self, mock_model: MockModel, explainer_config: ExplainerConfig
@@ -621,12 +620,10 @@ class TestVisualizationHelpers:
 class TestIntegration:
     """Integration tests for the explainer module."""
 
-    @patch("signalforge.ml.inference.explainer.shap")
-    def test_end_to_end_single_explanation(
-        self, mock_shap: MagicMock, single_row_dataframe: pl.DataFrame
-    ) -> None:
+    def test_end_to_end_single_explanation(self, single_row_dataframe: pl.DataFrame) -> None:
         """Test complete workflow for single prediction explanation."""
-        # Setup
+        # Create mock shap module
+        mock_shap = MagicMock()
         mock_model = MockModel(return_value=0.65)
         mock_explainer = MagicMock()
         mock_explainer.expected_value = 0.50
@@ -635,33 +632,32 @@ class TestIntegration:
         mock_shap_values = np.array([0.08, 0.05, 0.02, 0.01])
         mock_explainer.shap_values = Mock(return_value=mock_shap_values)
 
-        # Execute
-        config = ExplainerConfig(method="kernel", n_samples=10, max_features=3)
-        explainer = ModelExplainer(config)
-        result = explainer.explain(mock_model, single_row_dataframe)
+        with patch.dict(sys.modules, {"shap": mock_shap}):
+            # Execute
+            config = ExplainerConfig(method="kernel", n_samples=10, max_features=3)
+            explainer = ModelExplainer(config)
+            result = explainer.explain(mock_model, single_row_dataframe)
 
-        # Verify
-        assert result.prediction == 0.65
-        assert result.base_value == 0.50
-        assert len(result.feature_contributions) == 4
-        assert len(result.top_features) == 3
+            # Verify
+            assert result.prediction == 0.65
+            assert result.base_value == 0.50
+            assert len(result.feature_contributions) == 4
+            assert len(result.top_features) == 3
 
-        # Generate text
-        text = generate_explanation_text(result)
-        assert text != ""
-        assert "0.65" in text
+            # Generate text
+            text = generate_explanation_text(result)
+            assert text != ""
+            assert "0.65" in text
 
-        # Generate waterfall data
-        waterfall_data = plot_waterfall(result)
-        assert len(waterfall_data["features"]) == 4
-        assert waterfall_data["prediction"] == 0.65
+            # Generate waterfall data
+            waterfall_data = plot_waterfall(result)
+            assert len(waterfall_data["features"]) == 4
+            assert waterfall_data["prediction"] == 0.65
 
-    @patch("signalforge.ml.inference.explainer.shap")
-    def test_end_to_end_batch_explanation(
-        self, mock_shap: MagicMock, sample_dataframe: pl.DataFrame
-    ) -> None:
+    def test_end_to_end_batch_explanation(self, sample_dataframe: pl.DataFrame) -> None:
         """Test complete workflow for batch prediction explanation."""
-        # Setup
+        # Create mock shap module
+        mock_shap = MagicMock()
         mock_model = MockModel(return_value=[0.65, 0.55, 0.60])
         mock_explainer = MagicMock()
         mock_explainer.expected_value = 0.50
@@ -672,15 +668,16 @@ class TestIntegration:
         )
         mock_explainer.shap_values = Mock(return_value=mock_shap_values)
 
-        # Execute
-        config = ExplainerConfig(method="kernel", n_samples=10, max_features=3)
-        explainer = ModelExplainer(config)
-        results = explainer.explain_batch(mock_model, sample_dataframe)
+        with patch.dict(sys.modules, {"shap": mock_shap}):
+            # Execute
+            config = ExplainerConfig(method="kernel", n_samples=10, max_features=3)
+            explainer = ModelExplainer(config)
+            results = explainer.explain_batch(mock_model, sample_dataframe)
 
-        # Verify
-        assert len(results) == 3
+            # Verify
+            assert len(results) == 3
 
-        # Generate summary data
-        summary_data = plot_summary(results)
-        assert len(summary_data["features"]) == 4
-        assert len(summary_data["shap_values"]) == 3
+            # Generate summary data
+            summary_data = plot_summary(results)
+            assert len(summary_data["features"]) == 4
+            assert len(summary_data["shap_values"]) == 3

@@ -384,7 +384,9 @@ class ModelExplainer(BaseExplainer):
                 importance = abs(baseline_score - permuted_score)
 
                 # Determine direction (simplified)
-                direction = "positive" if permuted_score < baseline_score else "negative"
+                direction: Literal["positive", "negative"] = (
+                    "positive" if permuted_score < baseline_score else "negative"
+                )
 
                 importances.append(
                     FeatureImportance(
@@ -455,7 +457,9 @@ class ModelExplainer(BaseExplainer):
             feature_contributions = []
             for i, feature_name in enumerate(feature_names):
                 shap_val = float(shap_values_single[i])
-                direction = "positive" if shap_val >= 0 else "negative"
+                direction: Literal["positive", "negative"] = (
+                    "positive" if shap_val >= 0 else "negative"
+                )
 
                 feature_contributions.append(
                     FeatureImportance(
@@ -555,7 +559,9 @@ class ModelExplainer(BaseExplainer):
                 feature_contributions = []
                 for i, feature_name in enumerate(feature_names):
                     shap_val = float(shap_values_single[i])
-                    direction = "positive" if shap_val >= 0 else "negative"
+                    direction: Literal["positive", "negative"] = (
+                        "positive" if shap_val >= 0 else "negative"
+                    )
 
                     feature_contributions.append(
                         FeatureImportance(
@@ -636,7 +642,9 @@ class ModelExplainer(BaseExplainer):
                 importances = []
 
                 for i, feature_name in enumerate(feature_names):
-                    direction = "positive" if mean_shap[i] >= 0 else "negative"
+                    direction: Literal["positive", "negative"] = (
+                        "positive" if mean_shap[i] >= 0 else "negative"
+                    )
                     importances.append(
                         FeatureImportance(
                             feature=feature_name,
@@ -854,7 +862,7 @@ def plot_summary(explanations: list[ExplanationResult]) -> dict[str, Any]:
         for contrib in exp.feature_contributions:
             all_features.add(contrib.feature)
 
-    features = sorted(list(all_features))
+    features = sorted(all_features)
 
     # Build SHAP values matrix
     shap_values = []
