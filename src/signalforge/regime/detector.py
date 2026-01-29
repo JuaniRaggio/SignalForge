@@ -747,7 +747,7 @@ class RegimeDetector:
         stationary_dist = stationary_dist / np.sum(stationary_dist)
 
         # Map states to regimes and aggregate probabilities
-        regime_probs: dict[Regime, float] = {regime: 0.0 for regime in Regime}
+        regime_probs: dict[Regime, float] = {regime: 0.0 for regime in Regime}  # noqa: C420
 
         for state in range(self.config.n_regimes):
             regime = self._regime_mapping[state]
