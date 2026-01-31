@@ -349,7 +349,10 @@ class TestModelExplainer:
             explainer.explain(mock_model, empty_df)
 
     def test_explain_multiple_rows_raises_error(
-        self, mock_model: MockModel, sample_dataframe: pl.DataFrame, explainer_config: ExplainerConfig
+        self,
+        mock_model: MockModel,
+        sample_dataframe: pl.DataFrame,
+        explainer_config: ExplainerConfig,
     ) -> None:
         """Test that explain with multiple rows raises error."""
         explainer = ModelExplainer(explainer_config)
@@ -378,7 +381,10 @@ class TestModelExplainer:
             explainer.get_feature_importance(mock_model, empty_df)
 
     def test_fallback_permutation_importance(
-        self, mock_model: MockModel, sample_dataframe: pl.DataFrame, explainer_config: ExplainerConfig
+        self,
+        mock_model: MockModel,
+        sample_dataframe: pl.DataFrame,
+        explainer_config: ExplainerConfig,
     ) -> None:
         """Test fallback to permutation importance when SHAP fails."""
         explainer = ModelExplainer(explainer_config)

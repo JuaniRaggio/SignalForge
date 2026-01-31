@@ -7,18 +7,14 @@ to avoid requiring actual model downloads during testing.
 from __future__ import annotations
 
 import sys
-from typing import TYPE_CHECKING, Any, Iterator
+from collections.abc import Iterator
+from typing import TYPE_CHECKING, Any
 from unittest.mock import MagicMock, patch
 
 import pytest
 
 if TYPE_CHECKING:
-    from signalforge.nlp.sentiment import (
-        BaseSentimentAnalyzer,
-        FinBERTSentimentAnalyzer,
-        SentimentConfig,
-        SentimentResult,
-    )
+    pass
 
 
 @pytest.fixture(scope="module")
@@ -295,8 +291,9 @@ class TestFinBERTSentimentAnalyzer:
         """Test device selection falls back to CPU when GPU unavailable."""
         SentimentConfig = sentiment_module.SentimentConfig
         FinBERTSentimentAnalyzer = sentiment_module.FinBERTSentimentAnalyzer
-        with patch.object(mock_torch_module.cuda, "is_available", return_value=False), patch.object(
-            mock_torch_module.backends.mps, "is_available", return_value=False
+        with (
+            patch.object(mock_torch_module.cuda, "is_available", return_value=False),
+            patch.object(mock_torch_module.backends.mps, "is_available", return_value=False),
         ):
             config = SentimentConfig(device="auto")
             analyzer = FinBERTSentimentAnalyzer(config)
@@ -315,9 +312,7 @@ class TestFinBERTSentimentAnalyzer:
         with pytest.raises(ValueError, match="Text cannot be empty"):
             analyzer.analyze("   ")
 
-    def test_analyze_single_text(
-        self, sentiment_module: Any, mock_transformers: MagicMock
-    ) -> None:
+    def test_analyze_single_text(self, sentiment_module: Any, mock_transformers: MagicMock) -> None:
         """Test analyzing single text."""
         SentimentConfig = sentiment_module.SentimentConfig
         FinBERTSentimentAnalyzer = sentiment_module.FinBERTSentimentAnalyzer
@@ -384,9 +379,7 @@ class TestFinBERTSentimentAnalyzer:
         with pytest.raises(ValueError, match="Texts list cannot be empty"):
             analyzer.analyze_batch([])
 
-    def test_analyze_batch(
-        self, sentiment_module: Any, mock_transformers: MagicMock
-    ) -> None:
+    def test_analyze_batch(self, sentiment_module: Any, mock_transformers: MagicMock) -> None:
         """Test batch sentiment analysis."""
         SentimentConfig = sentiment_module.SentimentConfig
         FinBERTSentimentAnalyzer = sentiment_module.FinBERTSentimentAnalyzer
@@ -479,9 +472,7 @@ class TestFinBERTSentimentAnalyzer:
             call_args = mock_pipeline.call_args[0][0]
             assert "http://example.com" not in call_args
 
-    def test_model_caching(
-        self, sentiment_module: Any, mock_transformers: MagicMock
-    ) -> None:
+    def test_model_caching(self, sentiment_module: Any, mock_transformers: MagicMock) -> None:
         """Test that model is loaded only once when caching is enabled."""
         SentimentConfig = sentiment_module.SentimentConfig
         FinBERTSentimentAnalyzer = sentiment_module.FinBERTSentimentAnalyzer
@@ -489,7 +480,9 @@ class TestFinBERTSentimentAnalyzer:
         mock_pipeline = MagicMock()
         mock_pipeline.return_value = [{"label": "positive", "score": 0.90}]
 
-        with patch.object(mock_transformers, "pipeline", return_value=mock_pipeline) as mock_factory:
+        with patch.object(
+            mock_transformers, "pipeline", return_value=mock_pipeline
+        ) as mock_factory:
             config = SentimentConfig(device="cpu", cache_model=True)
             analyzer = FinBERTSentimentAnalyzer(config)
 
@@ -535,9 +528,7 @@ class TestFinBERTSentimentAnalyzer:
             with pytest.raises(RuntimeError, match="Failed to load model"):
                 analyzer.analyze("Test text")
 
-    def test_cleanup_gpu_memory(
-        self, sentiment_module: Any, mock_torch_module: MagicMock
-    ) -> None:
+    def test_cleanup_gpu_memory(self, sentiment_module: Any, mock_torch_module: MagicMock) -> None:
         """Test GPU memory cleanup."""
         FinBERTSentimentAnalyzer = sentiment_module.FinBERTSentimentAnalyzer
         with patch.object(mock_torch_module.cuda, "is_available", return_value=True):
@@ -558,9 +549,7 @@ class TestFinBERTSentimentAnalyzer:
         analyzer.cleanup()
         assert analyzer._pipeline is None
 
-    def test_temperature_scaling(
-        self, sentiment_module: Any, mock_transformers: MagicMock
-    ) -> None:
+    def test_temperature_scaling(self, sentiment_module: Any, mock_transformers: MagicMock) -> None:
         """Test temperature scaling for confidence calibration."""
         SentimentConfig = sentiment_module.SentimentConfig
         FinBERTSentimentAnalyzer = sentiment_module.FinBERTSentimentAnalyzer
@@ -650,9 +639,7 @@ class TestHelperFunctions:
 class TestEdgeCases:
     """Tests for edge cases and error handling."""
 
-    def test_very_long_text(
-        self, sentiment_module: Any, mock_transformers: MagicMock
-    ) -> None:
+    def test_very_long_text(self, sentiment_module: Any, mock_transformers: MagicMock) -> None:
         """Test handling of very long text."""
         SentimentConfig = sentiment_module.SentimentConfig
         FinBERTSentimentAnalyzer = sentiment_module.FinBERTSentimentAnalyzer
@@ -671,9 +658,7 @@ class TestEdgeCases:
             call_args = mock_pipeline.call_args[0][0]
             assert len(call_args) <= 512
 
-    def test_special_characters(
-        self, sentiment_module: Any, mock_transformers: MagicMock
-    ) -> None:
+    def test_special_characters(self, sentiment_module: Any, mock_transformers: MagicMock) -> None:
         """Test handling of special characters."""
         SentimentConfig = sentiment_module.SentimentConfig
         FinBERTSentimentAnalyzer = sentiment_module.FinBERTSentimentAnalyzer
@@ -690,9 +675,7 @@ class TestEdgeCases:
 
             assert result.label == "neutral"
 
-    def test_unicode_text(
-        self, sentiment_module: Any, mock_transformers: MagicMock
-    ) -> None:
+    def test_unicode_text(self, sentiment_module: Any, mock_transformers: MagicMock) -> None:
         """Test handling of Unicode text."""
         SentimentConfig = sentiment_module.SentimentConfig
         FinBERTSentimentAnalyzer = sentiment_module.FinBERTSentimentAnalyzer
@@ -709,9 +692,7 @@ class TestEdgeCases:
 
             assert result.label == "positive"
 
-    def test_single_word(
-        self, sentiment_module: Any, mock_transformers: MagicMock
-    ) -> None:
+    def test_single_word(self, sentiment_module: Any, mock_transformers: MagicMock) -> None:
         """Test handling of single word input."""
         SentimentConfig = sentiment_module.SentimentConfig
         FinBERTSentimentAnalyzer = sentiment_module.FinBERTSentimentAnalyzer

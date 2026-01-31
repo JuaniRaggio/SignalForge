@@ -7,18 +7,14 @@ to avoid requiring actual model downloads during testing.
 from __future__ import annotations
 
 import sys
-from typing import TYPE_CHECKING, Any, Iterator
+from collections.abc import Iterator
+from typing import TYPE_CHECKING, Any
 from unittest.mock import MagicMock, Mock, patch
 
 import pytest
 
 if TYPE_CHECKING:
-    from signalforge.nlp.embeddings import (
-        BaseEmbeddingModel,
-        EmbeddingResult,
-        EmbeddingsConfig,
-        SentenceTransformerEmbedder,
-    )
+    pass
 
 
 @pytest.fixture(scope="module")
@@ -69,7 +65,6 @@ def mock_torch_module() -> Iterator[MagicMock]:
 @pytest.fixture
 def embeddings_module(mock_torch_module: MagicMock) -> Any:
     """Import the embeddings module with mocked dependencies."""
-    import importlib
 
     # Clear any cached imports of the embeddings module
     modules_to_clear = [k for k in list(sys.modules.keys()) if "signalforge.nlp.embeddings" in k]
@@ -150,9 +145,7 @@ class TestEmbeddingResult:
                 dimension=3,
             )
 
-    def test_non_numeric_embedding_value_raises_error(
-        self, embeddings_module: Any
-    ) -> None:
+    def test_non_numeric_embedding_value_raises_error(self, embeddings_module: Any) -> None:
         """Test that non-numeric values in embedding raise ValueError."""
         EmbeddingResult = embeddings_module.EmbeddingResult
         with pytest.raises(ValueError, match="not numeric"):
@@ -299,9 +292,7 @@ class TestSentenceTransformerEmbedder:
             assert device == "cpu"
 
     @patch("sentence_transformers.SentenceTransformer")
-    def test_get_device_cpu(
-        self, mock_st_class: Mock, embeddings_module: Any
-    ) -> None:
+    def test_get_device_cpu(self, mock_st_class: Mock, embeddings_module: Any) -> None:
         """Test device selection with explicit CPU."""
         SentenceTransformerEmbedder = embeddings_module.SentenceTransformerEmbedder
         EmbeddingsConfig = embeddings_module.EmbeddingsConfig
@@ -364,11 +355,13 @@ class TestSentenceTransformerEmbedder:
 
         SentenceTransformerEmbedder = embeddings_module.SentenceTransformerEmbedder
 
-        mock_embeddings = np.array([
-            [0.1, 0.2, 0.3, 0.4],
-            [0.5, 0.6, 0.7, 0.8],
-            [0.9, 1.0, 1.1, 1.2],
-        ])
+        mock_embeddings = np.array(
+            [
+                [0.1, 0.2, 0.3, 0.4],
+                [0.5, 0.6, 0.7, 0.8],
+                [0.9, 1.0, 1.1, 1.2],
+            ]
+        )
         mock_sentence_transformer.encode.return_value = mock_embeddings
 
         embedder = SentenceTransformerEmbedder()
@@ -409,10 +402,12 @@ class TestSentenceTransformerEmbedder:
         SentenceTransformerEmbedder = embeddings_module.SentenceTransformerEmbedder
 
         mock_sentence_transformer.get_sentence_embedding_dimension.return_value = 4
-        mock_embeddings = np.array([
-            [0.1, 0.2, 0.3, 0.4],
-            [0.5, 0.6, 0.7, 0.8],
-        ])
+        mock_embeddings = np.array(
+            [
+                [0.1, 0.2, 0.3, 0.4],
+                [0.5, 0.6, 0.7, 0.8],
+            ]
+        )
         mock_sentence_transformer.encode.return_value = mock_embeddings
 
         embedder = SentenceTransformerEmbedder()
@@ -514,9 +509,7 @@ class TestSentenceTransformerEmbedder:
             assert embedder._dimension is None
 
     @patch("sentence_transformers.SentenceTransformer")
-    def test_model_loading_error(
-        self, mock_st_class: Mock, embeddings_module: Any
-    ) -> None:
+    def test_model_loading_error(self, mock_st_class: Mock, embeddings_module: Any) -> None:
         """Test error handling during model loading."""
         SentenceTransformerEmbedder = embeddings_module.SentenceTransformerEmbedder
         mock_st_class.side_effect = Exception("Model loading failed")
@@ -531,9 +524,7 @@ class TestHelperFunctions:
     """Tests for helper functions."""
 
     @patch("sentence_transformers.SentenceTransformer")
-    def test_get_embedder_default(
-        self, mock_st_class: Mock, embeddings_module: Any
-    ) -> None:
+    def test_get_embedder_default(self, mock_st_class: Mock, embeddings_module: Any) -> None:
         """Test get_embedder with default config."""
         get_embedder = embeddings_module.get_embedder
         SentenceTransformerEmbedder = embeddings_module.SentenceTransformerEmbedder
@@ -549,9 +540,7 @@ class TestHelperFunctions:
         assert embedder is embedder2
 
     @patch("sentence_transformers.SentenceTransformer")
-    def test_get_embedder_custom_config(
-        self, mock_st_class: Mock, embeddings_module: Any
-    ) -> None:
+    def test_get_embedder_custom_config(self, mock_st_class: Mock, embeddings_module: Any) -> None:
         """Test get_embedder with custom config."""
         get_embedder = embeddings_module.get_embedder
         SentenceTransformerEmbedder = embeddings_module.SentenceTransformerEmbedder

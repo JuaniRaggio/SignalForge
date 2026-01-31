@@ -69,15 +69,11 @@ class DocumentEmbedding(Base):
     __tablename__ = "document_embeddings"
 
     id: Mapped[str] = mapped_column(
-        String(255),
-        primary_key=True,
-        comment="Unique document identifier"
+        String(255), primary_key=True, comment="Unique document identifier"
     )
 
     text: Mapped[str] = mapped_column(
-        Text,
-        nullable=False,
-        comment="Original text content of the document"
+        Text, nullable=False, comment="Original text content of the document"
     )
 
     # Vector column for embeddings
@@ -85,9 +81,7 @@ class DocumentEmbedding(Base):
     # NOTE: This conditional is evaluated at class definition time
     _embedding_type = Vector(384) if (VECTOR_AVAILABLE and Vector is not None) else ARRAY(JSONB)
     embedding: Mapped[Any] = mapped_column(
-        _embedding_type,
-        nullable=False,
-        comment="Dense vector embedding of the text"
+        _embedding_type, nullable=False, comment="Dense vector embedding of the text"
     )
 
     metadata_: Mapped[dict[str, Any]] = mapped_column(
@@ -96,7 +90,7 @@ class DocumentEmbedding(Base):
         nullable=False,
         default=dict,
         server_default="{}",
-        comment="Additional metadata for filtering and context"
+        comment="Additional metadata for filtering and context",
     )
 
     created_at: Mapped[datetime] = mapped_column(
@@ -104,7 +98,7 @@ class DocumentEmbedding(Base):
         nullable=False,
         default=lambda: datetime.now(UTC),
         server_default="now()",
-        comment="Timestamp when document was created"
+        comment="Timestamp when document was created",
     )
 
     updated_at: Mapped[datetime] = mapped_column(
@@ -113,7 +107,7 @@ class DocumentEmbedding(Base):
         default=lambda: datetime.now(UTC),
         onupdate=lambda: datetime.now(UTC),
         server_default="now()",
-        comment="Timestamp when document was last updated"
+        comment="Timestamp when document was last updated",
     )
 
     def __repr__(self) -> str:

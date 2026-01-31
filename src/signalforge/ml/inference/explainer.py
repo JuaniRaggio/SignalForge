@@ -401,9 +401,7 @@ class ModelExplainer(BaseExplainer):
             return importances
 
         except Exception as e:
-            logger.error(
-                "permutation_importance_failed", error=str(e), exc_info=True
-            )
+            logger.error("permutation_importance_failed", error=str(e), exc_info=True)
             raise RuntimeError(f"Failed to calculate permutation importance: {e}")
 
     def explain(self, model: Any, X: pl.DataFrame) -> ExplanationResult:
@@ -471,10 +469,7 @@ class ModelExplainer(BaseExplainer):
             feature_contributions.sort(key=lambda x: x.importance, reverse=True)
 
             # Get top features
-            top_features = [
-                fc.feature
-                for fc in feature_contributions[: self.config.max_features]
-            ]
+            top_features = [fc.feature for fc in feature_contributions[: self.config.max_features]]
 
             # Generate summary text
             summary_text = generate_explanation_text(
@@ -576,8 +571,7 @@ class ModelExplainer(BaseExplainer):
 
                 # Get top features
                 top_features = [
-                    fc.feature
-                    for fc in feature_contributions[: self.config.max_features]
+                    fc.feature for fc in feature_contributions[: self.config.max_features]
                 ]
 
                 # Create result
@@ -598,9 +592,7 @@ class ModelExplainer(BaseExplainer):
             return results
 
         except Exception as e:
-            logger.error(
-                "batch_explanation_generation_failed", error=str(e), exc_info=True
-            )
+            logger.error("batch_explanation_generation_failed", error=str(e), exc_info=True)
             raise RuntimeError(f"Failed to generate batch explanations: {e}")
 
     def get_feature_importance(self, model: Any, X: pl.DataFrame) -> list[FeatureImportance]:
@@ -670,9 +662,7 @@ class ModelExplainer(BaseExplainer):
                 return self._fallback_permutation_importance(model, X)
 
         except Exception as e:
-            logger.error(
-                "feature_importance_calculation_failed", error=str(e), exc_info=True
-            )
+            logger.error("feature_importance_calculation_failed", error=str(e), exc_info=True)
             raise RuntimeError(f"Failed to calculate feature importance: {e}")
 
 
@@ -819,7 +809,9 @@ def plot_waterfall(explanation: ExplanationResult) -> dict[str, Any]:
     features = []
     values = []
 
-    for contrib in explanation.feature_contributions[: min(10, len(explanation.feature_contributions))]:
+    for contrib in explanation.feature_contributions[
+        : min(10, len(explanation.feature_contributions))
+    ]:
         features.append(contrib.feature)
         # Use signed value for waterfall
         value = contrib.importance if contrib.direction == "positive" else -contrib.importance

@@ -220,9 +220,7 @@ class QuantileRegressor(BasePredictor):
         logger.info(f"Auto-selected {len(available_features)} features: {available_features}")
         return available_features
 
-    def _create_lag_features(
-        self, df: pl.DataFrame, target_col: str, n_lags: int
-    ) -> pl.DataFrame:
+    def _create_lag_features(self, df: pl.DataFrame, target_col: str, n_lags: int) -> pl.DataFrame:
         """Create lagged features for time series prediction.
 
         Args:
@@ -418,7 +416,7 @@ class QuantileRegressor(BasePredictor):
                 for lag in range(self.config.n_lags, 1, -1):
                     lag_idx = self._feature_columns.index(f"{self._target_column}_lag_{lag}")
                     prev_lag_idx = self._feature_columns.index(
-                        f"{self._target_column}_lag_{lag-1}"
+                        f"{self._target_column}_lag_{lag - 1}"
                     )
                     current_features[lag_idx] = current_features[prev_lag_idx]
 
@@ -467,9 +465,7 @@ class QuantileRegressor(BasePredictor):
         logger.info("Evaluating quantile regression model")
 
         # Create lag features for test data
-        test_with_lags = self._create_lag_features(
-            test_df, self._target_column, self.config.n_lags
-        )
+        test_with_lags = self._create_lag_features(test_df, self._target_column, self.config.n_lags)
         test_clean = test_with_lags.drop_nulls()
 
         if test_clean.height == 0:
@@ -662,9 +658,7 @@ class QuantileGradientBoostingRegressor(BasePredictor):
         logger.info(f"Auto-selected {len(available_features)} features: {available_features}")
         return available_features
 
-    def _create_lag_features(
-        self, df: pl.DataFrame, target_col: str, n_lags: int
-    ) -> pl.DataFrame:
+    def _create_lag_features(self, df: pl.DataFrame, target_col: str, n_lags: int) -> pl.DataFrame:
         """Create lagged features for time series prediction."""
         if n_lags == 0:
             return df
@@ -835,7 +829,7 @@ class QuantileGradientBoostingRegressor(BasePredictor):
                 for lag in range(self.config.n_lags, 1, -1):
                     lag_idx = self._feature_columns.index(f"{self._target_column}_lag_{lag}")
                     prev_lag_idx = self._feature_columns.index(
-                        f"{self._target_column}_lag_{lag-1}"
+                        f"{self._target_column}_lag_{lag - 1}"
                     )
                     current_features[lag_idx] = current_features[prev_lag_idx]
 
@@ -860,9 +854,7 @@ class QuantileGradientBoostingRegressor(BasePredictor):
 
         logger.info("Evaluating gradient boosting quantile regression")
 
-        test_with_lags = self._create_lag_features(
-            test_df, self._target_column, self.config.n_lags
-        )
+        test_with_lags = self._create_lag_features(test_df, self._target_column, self.config.n_lags)
         test_clean = test_with_lags.drop_nulls()
 
         if test_clean.height == 0:
@@ -958,7 +950,10 @@ def create_quantile_regressor(
 
 
 def calculate_coverage(
-    predictions: pl.DataFrame, actuals: pl.Series, lower_col: str = "lower_bound", upper_col: str = "upper_bound"
+    predictions: pl.DataFrame,
+    actuals: pl.Series,
+    lower_col: str = "lower_bound",
+    upper_col: str = "upper_bound",
 ) -> float:
     """Calculate empirical coverage of prediction intervals.
 
@@ -991,9 +986,7 @@ def calculate_coverage(
         raise ValueError(f"Columns '{lower_col}' and '{upper_col}' must exist in predictions")
 
     if len(predictions) != len(actuals):
-        raise ValueError(
-            f"Length mismatch: predictions={len(predictions)}, actuals={len(actuals)}"
-        )
+        raise ValueError(f"Length mismatch: predictions={len(predictions)}, actuals={len(actuals)}")
 
     lower = predictions.select(lower_col).to_series()
     upper = predictions.select(upper_col).to_series()
@@ -1004,9 +997,7 @@ def calculate_coverage(
     return coverage
 
 
-def winkler_score(
-    lower: np.ndarray, upper: np.ndarray, actual: np.ndarray, alpha: float
-) -> float:
+def winkler_score(lower: np.ndarray, upper: np.ndarray, actual: np.ndarray, alpha: float) -> float:
     """Calculate Winkler score for prediction interval quality.
 
     The Winkler score penalizes both wide intervals and coverage violations.

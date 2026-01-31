@@ -573,9 +573,7 @@ class TestOptimizeWeights:
 class TestIntegrationWithRealModels:
     """Integration tests with real baseline models."""
 
-    def test_ensemble_with_arima_and_rolling_mean(
-        self, sample_time_series: pl.DataFrame
-    ) -> None:
+    def test_ensemble_with_arima_and_rolling_mean(self, sample_time_series: pl.DataFrame) -> None:
         """Test ensemble with ARIMA and RollingMean models."""
         config = EnsembleConfig(
             models=["arima", "rolling_mean"],
@@ -602,9 +600,7 @@ class TestIntegrationWithRealModels:
         assert "rolling_mean" in result.model_predictions
         assert result.confidence_interval is not None
 
-    def test_stacking_ensemble_with_real_models(
-        self, sample_time_series: pl.DataFrame
-    ) -> None:
+    def test_stacking_ensemble_with_real_models(self, sample_time_series: pl.DataFrame) -> None:
         """Test stacking ensemble with real baseline models."""
         config = EnsembleConfig(
             models=["arima", "rolling_mean"],

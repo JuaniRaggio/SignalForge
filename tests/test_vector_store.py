@@ -159,9 +159,7 @@ class TestVectorStore:
         operator = store._get_distance_operator()
         assert operator == "<->"
 
-    def test_get_distance_operator_inner_product(
-        self, mock_session_factory: MagicMock
-    ) -> None:
+    def test_get_distance_operator_inner_product(self, mock_session_factory: MagicMock) -> None:
         """Test distance operator for inner product metric."""
         config = VectorStoreConfig(distance_metric="inner_product")
         store = VectorStore(mock_session_factory, config)
@@ -201,9 +199,7 @@ class TestVectorStore:
         assert result is False
 
     @pytest.mark.asyncio
-    async def test_create_index_hnsw(
-        self, mock_session_factory: MagicMock
-    ) -> None:
+    async def test_create_index_hnsw(self, mock_session_factory: MagicMock) -> None:
         """Test creating HNSW index."""
         config = VectorStoreConfig(index_type="hnsw", m=16, ef_construction=64)
         store = VectorStore(mock_session_factory, config)
@@ -219,9 +215,7 @@ class TestVectorStore:
         mock_session.commit.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_create_index_ivfflat(
-        self, mock_session_factory: MagicMock
-    ) -> None:
+    async def test_create_index_ivfflat(self, mock_session_factory: MagicMock) -> None:
         """Test creating IVF-Flat index."""
         config = VectorStoreConfig(index_type="ivfflat", lists=100)
         store = VectorStore(mock_session_factory, config)
@@ -244,15 +238,14 @@ class TestVectorStore:
         _ = await mock_session_factory().__aenter__()  # Setup session
 
         # Mock pgvector extension as not available
-        with patch.object(
-            vector_store, "_check_pgvector_extension", return_value=False
-        ), pytest.raises(RuntimeError, match="pgvector extension is not installed"):
+        with (
+            patch.object(vector_store, "_check_pgvector_extension", return_value=False),
+            pytest.raises(RuntimeError, match="pgvector extension is not installed"),
+        ):
             await vector_store.create_index(dimension=384)
 
     @pytest.mark.asyncio
-    async def test_create_index_invalid_dimension(
-        self, vector_store: VectorStore
-    ) -> None:
+    async def test_create_index_invalid_dimension(self, vector_store: VectorStore) -> None:
         """Test creating index with invalid dimension."""
         with pytest.raises(ValueError, match="dimension must be positive"):
             await vector_store.create_index(dimension=0)
@@ -279,9 +272,7 @@ class TestVectorStore:
         mock_session.commit.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_store_document_invalid_id(
-        self, vector_store: VectorStore
-    ) -> None:
+    async def test_store_document_invalid_id(self, vector_store: VectorStore) -> None:
         """Test storing document with invalid ID."""
         with pytest.raises(ValueError, match="document_id cannot be empty"):
             await vector_store.store(
@@ -300,9 +291,7 @@ class TestVectorStore:
             )
 
     @pytest.mark.asyncio
-    async def test_store_document_invalid_text(
-        self, vector_store: VectorStore
-    ) -> None:
+    async def test_store_document_invalid_text(self, vector_store: VectorStore) -> None:
         """Test storing document with invalid text."""
         with pytest.raises(ValueError, match="text cannot be empty"):
             await vector_store.store(
@@ -321,9 +310,7 @@ class TestVectorStore:
             )
 
     @pytest.mark.asyncio
-    async def test_store_document_invalid_embedding(
-        self, vector_store: VectorStore
-    ) -> None:
+    async def test_store_document_invalid_embedding(self, vector_store: VectorStore) -> None:
         """Test storing document with invalid embedding."""
         with pytest.raises(ValueError, match="embedding cannot be empty"):
             await vector_store.store(
@@ -545,9 +532,7 @@ class TestVectorStore:
             await vector_store.get("   ")
 
     @pytest.mark.asyncio
-    async def test_search_l2_distance_similarity(
-        self, mock_session_factory: MagicMock
-    ) -> None:
+    async def test_search_l2_distance_similarity(self, mock_session_factory: MagicMock) -> None:
         """Test similarity calculation for L2 distance metric."""
         config = VectorStoreConfig(distance_metric="l2")
         store = VectorStore(mock_session_factory, config)
@@ -572,9 +557,7 @@ class TestVectorStore:
         assert results[0].similarity == -0.5
 
     @pytest.mark.asyncio
-    async def test_search_inner_product_similarity(
-        self, mock_session_factory: MagicMock
-    ) -> None:
+    async def test_search_inner_product_similarity(self, mock_session_factory: MagicMock) -> None:
         """Test similarity calculation for inner product metric."""
         config = VectorStoreConfig(distance_metric="inner_product")
         store = VectorStore(mock_session_factory, config)

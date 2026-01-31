@@ -242,8 +242,7 @@ class WeightedEnsemble(BaseEnsemble):
         """
         if name not in self.config.models:
             raise ValueError(
-                f"Model '{name}' not found in configuration. "
-                f"Expected one of: {self.config.models}"
+                f"Model '{name}' not found in configuration. Expected one of: {self.config.models}"
             )
 
         if name in self._models:
@@ -314,8 +313,7 @@ class WeightedEnsemble(BaseEnsemble):
                 raw_weights = self.config.weights
                 total = sum(raw_weights)
                 self._weights = {
-                    name: w / total
-                    for name, w in zip(self.config.models, raw_weights, strict=True)
+                    name: w / total for name, w in zip(self.config.models, raw_weights, strict=True)
                 }
                 logger.info("using_custom_weights", weights=self._weights)
             elif self.config.optimize_weights and self.config.method == "weighted":
@@ -489,8 +487,7 @@ class StackingEnsemble(BaseEnsemble):
         """
         if name not in self.config.models:
             raise ValueError(
-                f"Model '{name}' not found in configuration. "
-                f"Expected one of: {self.config.models}"
+                f"Model '{name}' not found in configuration. Expected one of: {self.config.models}"
             )
 
         if name in self._models:
@@ -898,9 +895,7 @@ def optimize_weights(
             # Fall back to equal weights
             weights_dict = dict.fromkeys(models.keys(), 1.0 / n_models)
         else:
-            weights_dict = {
-                name: float(w) for name, w in zip(models.keys(), result.x, strict=True)
-            }
+            weights_dict = {name: float(w) for name, w in zip(models.keys(), result.x, strict=True)}
             logger.info("weights_optimized_successfully", weights=weights_dict, mse=result.fun)
 
         return weights_dict

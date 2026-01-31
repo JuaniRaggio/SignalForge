@@ -46,8 +46,8 @@ Examples:
 
 from signalforge.ml.inference.explainer import (
     BaseExplainer,
-    ExplanationResult,
     ExplainerConfig,
+    ExplanationResult,
     FeatureImportance,
     ModelExplainer,
     generate_explanation_text,

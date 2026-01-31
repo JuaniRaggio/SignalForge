@@ -218,9 +218,7 @@ class TestEmbeddingTopicExtractor:
         assert any("Apple" in c for c in candidates)
         assert any("earnings" in c.lower() for c in candidates)
 
-    def test_extract_candidates_filters_stopwords(
-        self, extractor: EmbeddingTopicExtractor
-    ) -> None:
+    def test_extract_candidates_filters_stopwords(self, extractor: EmbeddingTopicExtractor) -> None:
         """Test that candidates filter out stopword-only n-grams."""
         text = "The company is a leader."
         candidates = extractor._extract_candidates(text)
@@ -234,9 +232,7 @@ class TestEmbeddingTopicExtractor:
         assert any("company" in c.lower() for c in candidates)
         assert any("leader" in c.lower() for c in candidates)
 
-    def test_tokenize_preserves_financial_symbols(
-        self, extractor: EmbeddingTopicExtractor
-    ) -> None:
+    def test_tokenize_preserves_financial_symbols(self, extractor: EmbeddingTopicExtractor) -> None:
         """Test that tokenization preserves financial symbols."""
         text = "Stock price $150 increased 15%"
         tokens = extractor._tokenize(text)
@@ -275,9 +271,7 @@ class TestEmbeddingTopicExtractor:
         with pytest.raises(ValueError, match="Text cannot be empty"):
             extractor.extract("")
 
-    def test_extract_whitespace_only_raises_error(
-        self, extractor: EmbeddingTopicExtractor
-    ) -> None:
+    def test_extract_whitespace_only_raises_error(self, extractor: EmbeddingTopicExtractor) -> None:
         """Test that whitespace-only text raises ValueError."""
         with pytest.raises(ValueError, match="Text cannot be empty"):
             extractor.extract("   ")
@@ -498,9 +492,7 @@ class TestEdgeCases:
 
         assert result.text == text
 
-    def test_text_with_numbers_and_percentages(
-        self, extractor: EmbeddingTopicExtractor
-    ) -> None:
+    def test_text_with_numbers_and_percentages(self, extractor: EmbeddingTopicExtractor) -> None:
         """Test extraction from text with numbers and percentages."""
         text = "Revenue increased 15% to $50 billion in Q4 2023"
         result = extractor.extract(text)

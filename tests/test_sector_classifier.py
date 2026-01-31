@@ -284,9 +284,7 @@ class TestEmbeddingSectorClassifier:
         with pytest.raises(ValueError, match="Texts list cannot be empty"):
             classifier.classify_batch([])
 
-    def test_classify_batch_multiple_texts(
-        self, classifier: EmbeddingSectorClassifier
-    ) -> None:
+    def test_classify_batch_multiple_texts(self, classifier: EmbeddingSectorClassifier) -> None:
         """Test batch classification of multiple texts."""
         texts = [
             "Banking sector profits increased",
@@ -304,9 +302,7 @@ class TestEmbeddingSectorClassifier:
             assert 0.0 <= prediction.confidence <= 1.0
             assert len(prediction.all_scores) == len(GICS_SECTORS)
 
-    def test_classify_batch_with_empty_text(
-        self, classifier: EmbeddingSectorClassifier
-    ) -> None:
+    def test_classify_batch_with_empty_text(self, classifier: EmbeddingSectorClassifier) -> None:
         """Test batch classification with empty text in list."""
         texts = [
             "Banking profits rise",
@@ -459,9 +455,7 @@ class TestIntegration:
             # Energy should likely be in top predictions
             top_3 = prediction.get_top_k_sectors(3)
             top_sectors = [s[0] for s in top_3]
-            assert any(
-                sector in ["Energy", "Materials", "Industrials"] for sector in top_sectors
-            )
+            assert any(sector in ["Energy", "Materials", "Industrials"] for sector in top_sectors)
 
         except RuntimeError:
             pytest.skip("Sentence transformers not available")

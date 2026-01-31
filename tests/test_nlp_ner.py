@@ -12,6 +12,7 @@ import pytest
 # Mock spacy module before importing ner module
 mock_spacy = MagicMock()
 
+
 # Create a mock Doc class
 class MockDoc:
     """Mock spaCy Doc object."""

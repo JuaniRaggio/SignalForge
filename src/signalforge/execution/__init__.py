@@ -1,7 +1,8 @@
 """Execution quality module for signal validation.
 
 This module provides tools for assessing the executability of trading signals
-under real market conditions, including liquidity analysis and slippage estimation.
+under real market conditions, including liquidity analysis, slippage estimation,
+and bid-ask spread calculation.
 """
 
 from signalforge.execution.liquidity import (
@@ -16,6 +17,12 @@ from signalforge.execution.slippage import (
     calculate_execution_risk,
     estimate_slippage,
 )
+from signalforge.execution.spread import (
+    SpreadCalculator,
+    SpreadConfig,
+    SpreadMetrics,
+    calculate_corwin_schultz_spread,
+)
 
 __all__ = [
     "LiquidityMetrics",
@@ -26,4 +33,8 @@ __all__ = [
     "SlippageEstimate",
     "calculate_execution_risk",
     "estimate_slippage",
+    "SpreadCalculator",
+    "SpreadConfig",
+    "SpreadMetrics",
+    "calculate_corwin_schultz_spread",
 ]

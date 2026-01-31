@@ -447,9 +447,7 @@ class TestRegimeDetectorMethods:
 class TestRegimeDetectorSerialization:
     """Tests for model serialization."""
 
-    def test_save_and_load_model(
-        self, sample_price_data: pl.DataFrame, tmp_path: Path
-    ) -> None:
+    def test_save_and_load_model(self, sample_price_data: pl.DataFrame, tmp_path: Path) -> None:
         """Test saving and loading model."""
         # Fit and save model
         detector1 = RegimeDetector()

@@ -21,8 +21,8 @@ from signalforge.ml.models.base import BasePredictor
 from signalforge.ml.models.quantile_regression import (
     QuantileGradientBoostingRegressor,
     QuantilePrediction,
-    QuantileRegressor,
     QuantileRegressionConfig,
+    QuantileRegressor,
     calculate_coverage,
     create_quantile_regressor,
     winkler_score,
@@ -92,9 +92,7 @@ def sample_with_features() -> pl.DataFrame:
 @pytest.fixture
 def simple_quantile_config() -> QuantileRegressionConfig:
     """Create basic configuration for testing."""
-    return QuantileRegressionConfig(
-        quantiles=[0.1, 0.5, 0.9], alpha=0.01, max_iter=500, n_lags=3
-    )
+    return QuantileRegressionConfig(quantiles=[0.1, 0.5, 0.9], alpha=0.01, max_iter=500, n_lags=3)
 
 
 class TestQuantileRegressionConfig:
@@ -203,7 +201,7 @@ class TestQuantilePrediction:
     def test_inconsistent_bounds_warning(self, caplog: pytest.LogCaptureFixture) -> None:
         """Test warning for inconsistent prediction bounds."""
         # Lower bound exceeds point forecast
-        pred = QuantilePrediction(
+        _pred = QuantilePrediction(
             point_forecast=100.0,
             lower_bound=102.0,
             upper_bound=105.0,
@@ -571,9 +569,7 @@ class TestHelperFunctions:
 
     def test_calculate_coverage_custom_columns(self) -> None:
         """Test coverage with custom column names."""
-        predictions = pl.DataFrame(
-            {"pred_lower": [95.0, 98.0], "pred_upper": [105.0, 108.0]}
-        )
+        predictions = pl.DataFrame({"pred_lower": [95.0, 98.0], "pred_upper": [105.0, 108.0]})
         actuals = pl.Series([100.0, 107.0])
 
         coverage = calculate_coverage(

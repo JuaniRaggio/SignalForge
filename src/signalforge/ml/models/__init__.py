@@ -50,8 +50,8 @@ from signalforge.ml.models.ensemble import (
 from signalforge.ml.models.quantile_regression import (
     QuantileGradientBoostingRegressor,
     QuantilePrediction,
-    QuantileRegressor,
     QuantileRegressionConfig,
+    QuantileRegressor,
     calculate_coverage,
     create_quantile_regressor,
     winkler_score,
