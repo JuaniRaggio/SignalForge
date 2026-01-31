@@ -19,8 +19,8 @@ from signalforge.nlp.ner import (
     BaseEntityExtractor,
     EntityExtractionResult,
     FinancialEntityExtractor,
-    NERConfig,
     NamedEntity,
+    NERConfig,
     SpaCyEntityExtractor,
     extract_entities,
     extract_tickers,
@@ -32,14 +32,6 @@ from signalforge.nlp.preprocessing import (
     ProcessedDocument,
     TextPreprocessor,
 )
-from signalforge.nlp.sentiment import (
-    BaseSentimentAnalyzer,
-    FinBERTSentimentAnalyzer,
-    SentimentConfig,
-    SentimentResult,
-    analyze_financial_text,
-    get_sentiment_analyzer,
-)
 from signalforge.nlp.sector_classifier import (
     BaseSectorClassifier,
     EmbeddingSectorClassifier,
@@ -48,6 +40,14 @@ from signalforge.nlp.sector_classifier import (
     classify_sector,
     get_all_sectors,
     get_sector_classifier,
+)
+from signalforge.nlp.sentiment import (
+    BaseSentimentAnalyzer,
+    FinBERTSentimentAnalyzer,
+    SentimentConfig,
+    SentimentResult,
+    analyze_financial_text,
+    get_sentiment_analyzer,
 )
 from signalforge.nlp.topics import (
     BaseTopicExtractor,

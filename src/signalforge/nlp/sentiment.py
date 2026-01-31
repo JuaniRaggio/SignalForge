@@ -332,8 +332,7 @@ class FinBERTSentimentAnalyzer(BaseSentimentAnalyzer):
 
         except ImportError as e:
             error_msg = (
-                "transformers or torch not installed. "
-                "Install with: pip install transformers torch"
+                "transformers or torch not installed. Install with: pip install transformers torch"
             )
             logger.error("model_load_failed", error=str(e), reason="missing_dependencies")
             raise RuntimeError(error_msg) from e
@@ -463,7 +462,7 @@ class FinBERTSentimentAnalyzer(BaseSentimentAnalyzer):
             pipeline = self._ensure_model_loaded()
 
             # Perform inference
-            result = pipeline(processed_text[:self._config.max_length])[0]
+            result = pipeline(processed_text[: self._config.max_length])[0]
 
             # Parse and return result
             sentiment_result = self._parse_model_output(text, result)

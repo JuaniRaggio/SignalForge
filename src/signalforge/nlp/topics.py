@@ -342,7 +342,10 @@ class EmbeddingTopicExtractor(BaseTopicExtractor):
                         continue
 
                     # Filter out n-grams starting or ending with stopwords
-                    if ngram_tokens[0].lower() in STOPWORDS or ngram_tokens[-1].lower() in STOPWORDS:
+                    if (
+                        ngram_tokens[0].lower() in STOPWORDS
+                        or ngram_tokens[-1].lower() in STOPWORDS
+                    ):
                         continue
 
                     # Join tokens into phrase
@@ -472,9 +475,7 @@ class EmbeddingTopicExtractor(BaseTopicExtractor):
             selected_embeddings.append(best_candidate[1])
 
             # Remove selected candidate from remaining
-            remaining = [
-                (c, e) for c, e in remaining if c != best_candidate[0]
-            ]
+            remaining = [(c, e) for c, e in remaining if c != best_candidate[0]]
 
             if not remaining:
                 break

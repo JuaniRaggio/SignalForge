@@ -149,9 +149,7 @@ class VectorStoreConfig:
             raise ValueError(f"lists must be positive, got {self.lists}")
 
         if self.ef_construction <= 0:
-            raise ValueError(
-                f"ef_construction must be positive, got {self.ef_construction}"
-            )
+            raise ValueError(f"ef_construction must be positive, got {self.ef_construction}")
 
         if self.m <= 0:
             raise ValueError(f"m must be positive, got {self.m}")
@@ -239,9 +237,7 @@ class VectorStore:
         """
         try:
             result = await session.execute(
-                text(
-                    "SELECT extname FROM pg_extension WHERE extname = 'vector'"
-                )
+                text("SELECT extname FROM pg_extension WHERE extname = 'vector'")
             )
             row = result.fetchone()
             return row is not None
@@ -279,17 +275,14 @@ class VectorStore:
             # Check if pgvector is available
             if not await self._check_pgvector_extension(session):
                 error_msg = (
-                    "pgvector extension is not installed. "
-                    "Install it with: CREATE EXTENSION vector;"
+                    "pgvector extension is not installed. Install it with: CREATE EXTENSION vector;"
                 )
                 logger.error("pgvector_not_available")
                 raise RuntimeError(error_msg)
 
             try:
                 # Drop existing index if it exists
-                await session.execute(
-                    text("DROP INDEX IF EXISTS idx_document_embeddings_vector")
-                )
+                await session.execute(text("DROP INDEX IF EXISTS idx_document_embeddings_vector"))
 
                 # Create index based on type
                 if self._config.index_type == "hnsw":
@@ -398,9 +391,7 @@ class VectorStore:
                     document_id=document_id,
                     error=str(e),
                 )
-                raise RuntimeError(
-                    f"Failed to store document {document_id}: {e}"
-                ) from e
+                raise RuntimeError(f"Failed to store document {document_id}: {e}") from e
 
     async def store_batch(
         self,
@@ -525,14 +516,12 @@ class VectorStore:
                 )
 
                 # Build base query
-                stmt = (
-                    select(
-                        DocumentEmbedding.id,
-                        DocumentEmbedding.text,
-                        DocumentEmbedding.embedding,
-                        DocumentEmbedding.metadata_,
-                        distance_expr.label("distance"),
-                    )
+                stmt = select(
+                    DocumentEmbedding.id,
+                    DocumentEmbedding.text,
+                    DocumentEmbedding.embedding,
+                    DocumentEmbedding.metadata_,
+                    distance_expr.label("distance"),
                 )
 
                 # Add metadata filters if provided
@@ -540,9 +529,8 @@ class VectorStore:
                     for key, value in filter_metadata.items():
                         # Use JSONB containment operator for filtering
                         stmt = stmt.where(
-                            func.jsonb_extract_path_text(
-                                DocumentEmbedding.metadata_, key
-                            ) == str(value)
+                            func.jsonb_extract_path_text(DocumentEmbedding.metadata_, key)
+                            == str(value)
                         )
 
                 # Order by distance and limit
@@ -617,9 +605,7 @@ class VectorStore:
 
         async with self._session_factory() as session:
             try:
-                stmt = delete(DocumentEmbedding).where(
-                    DocumentEmbedding.id == document_id
-                )
+                stmt = delete(DocumentEmbedding).where(DocumentEmbedding.id == document_id)
                 result = await session.execute(stmt)
                 await session.commit()
 
@@ -639,9 +625,7 @@ class VectorStore:
                     document_id=document_id,
                     error=str(e),
                 )
-                raise RuntimeError(
-                    f"Failed to delete document {document_id}: {e}"
-                ) from e
+                raise RuntimeError(f"Failed to delete document {document_id}: {e}") from e
 
     async def get(self, document_id: str) -> VectorSearchResult | None:
         """Retrieve a document by ID.
@@ -666,9 +650,7 @@ class VectorStore:
 
         async with self._session_factory() as session:
             try:
-                stmt = select(DocumentEmbedding).where(
-                    DocumentEmbedding.id == document_id
-                )
+                stmt = select(DocumentEmbedding).where(DocumentEmbedding.id == document_id)
                 result = await session.execute(stmt)
                 doc = result.scalar_one_or_none()
 
@@ -693,6 +675,4 @@ class VectorStore:
                     document_id=document_id,
                     error=str(e),
                 )
-                raise RuntimeError(
-                    f"Failed to get document {document_id}: {e}"
-                ) from e
+                raise RuntimeError(f"Failed to get document {document_id}: {e}") from e

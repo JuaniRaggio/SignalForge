@@ -302,9 +302,7 @@ class RegimeDetector:
 
         return features
 
-    def _standardize_features(
-        self, features: np.ndarray, fit: bool = False
-    ) -> np.ndarray:
+    def _standardize_features(self, features: np.ndarray, fit: bool = False) -> np.ndarray:
         """Standardize features to zero mean and unit variance.
 
         Args:
@@ -389,7 +387,9 @@ class RegimeDetector:
             )
 
         # Sort states by volatility (highest first) to identify CRISIS
-        sorted_by_vol = sorted(state_characteristics, key=lambda x: x["avg_volatility"], reverse=True)
+        sorted_by_vol = sorted(
+            state_characteristics, key=lambda x: x["avg_volatility"], reverse=True
+        )
 
         # Assign regimes based on characteristics
         assigned_regimes: set[Regime] = set()
@@ -561,7 +561,9 @@ class RegimeDetector:
                 random_state=self.config.random_state,
             )
 
-            logger.debug("training_hmm", n_samples=len(features_scaled), n_features=features_scaled.shape[1])
+            logger.debug(
+                "training_hmm", n_samples=len(features_scaled), n_features=features_scaled.shape[1]
+            )
 
             self._model.fit(features_scaled)
 
@@ -636,7 +638,9 @@ class RegimeDetector:
             regimes = np.array([self._regime_mapping[state].value for state in states_filtered])
 
             # Get regime probabilities (max probability for predicted state)
-            regime_probs = np.array([state_probs[i, states_filtered[i]] for i in range(len(states_filtered))])
+            regime_probs = np.array(
+                [state_probs[i, states_filtered[i]] for i in range(len(states_filtered))]
+            )
 
             # Create result DataFrame (need to match the cleaned feature DataFrame length)
             # Get the indices of non-null rows
@@ -706,7 +710,9 @@ class RegimeDetector:
             RuntimeError: If model has not been fitted or predict() has not been called.
         """
         if not self._fitted:
-            raise RuntimeError("Model must be fitted before getting current regime. Call fit() first.")
+            raise RuntimeError(
+                "Model must be fitted before getting current regime. Call fit() first."
+            )
 
         if self._last_predictions is None or len(self._last_predictions) == 0:
             raise RuntimeError("No predictions available. Call predict() first.")
@@ -768,7 +774,9 @@ class RegimeDetector:
             RuntimeError: If model has not been fitted.
         """
         if not self._fitted or self._model is None:
-            raise RuntimeError("Model must be fitted before getting transition matrix. Call fit() first.")
+            raise RuntimeError(
+                "Model must be fitted before getting transition matrix. Call fit() first."
+            )
 
         # Get HMM transition matrix
         transmat = self._model.transmat_

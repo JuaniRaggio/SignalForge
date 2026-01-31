@@ -62,7 +62,9 @@ DEFAULT_BATCH_SIZE = 32
 
 # Financial entity patterns
 TICKER_PATTERN: Final[str] = r"\$?[A-Z]{1,5}\b"
-MONEY_PATTERN: Final[str] = r"\$?\d+(?:\.\d+)?(?:[KMBTkmbt])?(?:\s*(?:USD|EUR|GBP|dollars?|euros?|pounds?))?"
+MONEY_PATTERN: Final[str] = (
+    r"\$?\d+(?:\.\d+)?(?:[KMBTkmbt])?(?:\s*(?:USD|EUR|GBP|dollars?|euros?|pounds?))?"
+)
 PERCENT_PATTERN: Final[str] = r"\d+(?:\.\d+)?(?:\s*)(?:%|percent|percentage|pct)"
 
 
@@ -149,8 +151,7 @@ class NERConfig:
         """Validate configuration parameters."""
         if not 0.0 <= self.confidence_threshold <= 1.0:
             raise ValueError(
-                f"confidence_threshold must be between 0.0 and 1.0, "
-                f"got {self.confidence_threshold}"
+                f"confidence_threshold must be between 0.0 and 1.0, got {self.confidence_threshold}"
             )
 
         if self.batch_size <= 0:
@@ -305,9 +306,7 @@ class SpaCyEntityExtractor(BaseEntityExtractor):
             raise RuntimeError(error_msg) from e
         except Exception as e:
             logger.error("model_load_failed", error=str(e), model=self._config.model_name)
-            raise RuntimeError(
-                f"Failed to load spaCy model {self._config.model_name}: {e}"
-            ) from e
+            raise RuntimeError(f"Failed to load spaCy model {self._config.model_name}: {e}") from e
 
     def _ensure_model_loaded(self) -> Language:
         """Ensure the model is loaded, loading it if necessary.

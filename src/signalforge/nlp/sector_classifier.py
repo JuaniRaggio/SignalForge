@@ -516,9 +516,7 @@ class EmbeddingSectorClassifier(BaseSectorClassifier):
             total_texts=len(texts),
             avg_confidence=sum(p.confidence for p in predictions) / len(predictions),
             below_threshold=sum(
-                1
-                for p in predictions
-                if p.confidence < self._config.similarity_threshold
+                1 for p in predictions if p.confidence < self._config.similarity_threshold
             ),
         )
 

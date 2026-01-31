@@ -663,9 +663,7 @@ def compute_similarity(emb1: list[float], emb2: list[float]) -> float:
         raise ValueError("Embeddings cannot be empty")
 
     if len(emb1) != len(emb2):
-        raise ValueError(
-            f"Embeddings must have same dimension, got {len(emb1)} and {len(emb2)}"
-        )
+        raise ValueError(f"Embeddings must have same dimension, got {len(emb1)} and {len(emb2)}")
 
     # Compute dot product
     dot_product = sum(a * b for a, b in zip(emb1, emb2, strict=True))
