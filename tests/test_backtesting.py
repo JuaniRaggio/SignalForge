@@ -25,9 +25,19 @@ from signalforge.ml.backtesting import (
     calculate_win_rate,
 )
 from signalforge.ml.backtesting.metrics import (
+    calculate_all,
     calculate_annualized_return,
     calculate_annualized_volatility,
+    calculate_calmar_ratio,
+    calculate_information_ratio,
     calculate_profit_factor,
+    calculate_sortino_ratio,
+)
+from signalforge.ml.backtesting.strategies import (
+    LongShortStrategy,
+    RankingStrategy,
+    ThresholdStrategy,
+    TradeSignal,
 )
 
 
@@ -608,8 +618,8 @@ class TestBacktestEngine:
         result = engine.run(sample_prices, simple_signals)
 
         assert isinstance(result, BacktestResult)
-        assert isinstance(result.metrics, BacktestMetrics)
-        assert isinstance(result.trades, list)
+        assert isinstance(result.total_return, float)
+        assert isinstance(result.trade_log, pl.DataFrame)
         assert isinstance(result.equity_curve, pl.DataFrame)
 
     def test_run_produces_trades(
@@ -620,8 +630,8 @@ class TestBacktestEngine:
         result = engine.run(sample_prices, simple_signals)
 
         # Simple signals should produce 2 trades
-        assert result.metrics.total_trades == 2
-        assert len(result.trades) == 2
+        assert result.total_trades == 2
+        assert result.trade_log.height == 2
 
     def test_run_equity_curve(
         self, sample_prices: pl.DataFrame, simple_signals: pl.DataFrame
@@ -649,9 +659,7 @@ class TestBacktestEngine:
         result_with_commission = engine_with_commission.run(sample_prices, simple_signals)
 
         # Results with commission should have lower returns
-        assert (
-            result_with_commission.metrics.total_return < result_no_commission.metrics.total_return
-        )
+        assert result_with_commission.total_return < result_no_commission.total_return
 
     def test_run_with_slippage(
         self, sample_prices: pl.DataFrame, simple_signals: pl.DataFrame
@@ -668,7 +676,7 @@ class TestBacktestEngine:
         result_with_slippage = engine_with_slippage.run(sample_prices, simple_signals)
 
         # Results with slippage should have lower returns
-        assert result_with_slippage.metrics.total_return < result_no_slippage.metrics.total_return
+        assert result_with_slippage.total_return < result_no_slippage.total_return
 
     def test_run_empty_prices(self, simple_signals: pl.DataFrame) -> None:
         """Test error with empty price DataFrame."""
@@ -737,9 +745,9 @@ class TestBacktestEngine:
         engine = BacktestEngine()
         result = engine.run(sample_prices, no_trade_signals)
 
-        assert result.metrics.total_trades == 0
-        assert len(result.trades) == 0
-        assert result.metrics.win_rate == 0.0
+        assert result.total_trades == 0
+        assert result.trade_log.is_empty()
+        assert result.win_rate == 0.0
 
     def test_run_one_trade(self, sample_prices: pl.DataFrame) -> None:
         """Test backtest with exactly one trade."""
@@ -753,8 +761,8 @@ class TestBacktestEngine:
         engine = BacktestEngine()
         result = engine.run(sample_prices, one_trade_signals)
 
-        assert result.metrics.total_trades == 1
-        assert len(result.trades) == 1
+        assert result.total_trades == 1
+        assert result.trade_log.height == 1
 
     def test_run_frequent_trading(
         self, sample_prices: pl.DataFrame, frequent_signals: pl.DataFrame
@@ -764,7 +772,7 @@ class TestBacktestEngine:
         result = engine.run(sample_prices, frequent_signals)
 
         # Should have multiple trades
-        assert result.metrics.total_trades > 5
+        assert result.total_trades > 5
 
     def test_run_position_sizing(
         self, sample_prices: pl.DataFrame, simple_signals: pl.DataFrame
@@ -776,10 +784,11 @@ class TestBacktestEngine:
         result = engine.run(sample_prices, simple_signals)
 
         # All trades should use approximately 50% of capital
-        for trade in result.trades:
-            position_value = trade.position_size * trade.entry_price
-            # Should be around 50000 (50% of 100000)
-            assert 45000 < position_value < 55000
+        if not result.trade_log.is_empty():
+            for row in result.trade_log.iter_rows(named=True):
+                position_value = float(row["position_size"]) * float(row["entry_price"])
+                # Should be around 50000 (50% of 100000)
+                assert 45000 < position_value < 55000
 
     def test_run_no_matching_timestamps(self, sample_prices: pl.DataFrame) -> None:
         """Test error when prices and signals have no matching timestamps."""
@@ -818,14 +827,13 @@ class TestBacktestEngine:
         result = engine.run(sample_prices, simple_signals)
 
         # Check metrics are within reasonable ranges
-        assert -100 <= result.metrics.total_return <= 1000
-        assert -100 <= result.metrics.annualized_return <= 1000
-        assert -10 <= result.metrics.sharpe_ratio <= 10
-        assert 0 <= result.metrics.max_drawdown <= 100
-        assert 0 <= result.metrics.win_rate <= 100
-        assert result.metrics.profit_factor >= 0
-        assert result.metrics.total_trades >= 0
-        assert result.metrics.volatility >= 0
+        assert -100 <= result.total_return <= 1000
+        assert -100 <= result.annualized_return <= 1000
+        assert -10 <= result.sharpe_ratio <= 10
+        assert 0 <= result.max_drawdown <= 100
+        assert 0 <= result.win_rate <= 100
+        assert result.profit_factor >= 0
+        assert result.total_trades >= 0
 
 
 class TestBacktestIntegration:
@@ -849,9 +857,9 @@ class TestBacktestIntegration:
         result = engine.run(sample_prices, strategy_signals)
 
         # Should have positive return
-        assert result.metrics.total_return > 0
-        assert result.metrics.total_trades == 1
-        assert result.metrics.win_rate == 100.0
+        assert result.total_return > 0
+        assert result.total_trades == 1
+        assert result.win_rate == 100.0
 
     def test_losing_strategy(self, sample_prices: pl.DataFrame) -> None:
         """Test a strategy that should lose money."""
@@ -871,9 +879,9 @@ class TestBacktestIntegration:
         result = engine.run(sample_prices, strategy_signals)
 
         # With high transaction costs and short hold, should lose money
-        assert result.metrics.total_return < 0
-        assert result.metrics.total_trades == 1
-        assert result.metrics.win_rate == 0.0
+        assert result.total_return < 0
+        assert result.total_trades == 1
+        assert result.win_rate == 0.0
 
     def test_buy_and_hold_equivalent(self, sample_prices: pl.DataFrame) -> None:
         """Test buy-and-hold strategy."""
@@ -896,4 +904,502 @@ class TestBacktestIntegration:
         expected_return = ((final_price - initial_price) / initial_price) * 100.0
 
         # Should match buy-and-hold return (within tolerance for rounding)
-        assert abs(result.metrics.total_return - expected_return) < 0.5
+        assert abs(result.total_return - expected_return) < 0.5
+
+
+# ==================== NEW TESTS FOR STRATEGY-BASED BACKTESTING ====================
+
+
+@pytest.fixture
+def sample_predictions() -> pl.DataFrame:
+    """Create sample ML predictions for testing strategies."""
+    dates = [datetime(2024, 1, 1) + timedelta(days=i) for i in range(50)]
+
+    predictions = []
+    for i, date in enumerate(dates):
+        predictions.append(
+            {
+                "symbol": "AAPL",
+                "timestamp": date,
+                "predicted_return": 0.02 + (i % 10) * 0.005,
+                "confidence": 0.6 + (i % 5) * 0.05,
+            }
+        )
+        predictions.append(
+            {
+                "symbol": "GOOGL",
+                "timestamp": date,
+                "predicted_return": -0.01 + (i % 8) * 0.003,
+                "confidence": 0.7 + (i % 4) * 0.03,
+            }
+        )
+
+    return pl.DataFrame(predictions)
+
+
+@pytest.fixture
+def multi_symbol_prices() -> pl.DataFrame:
+    """Create price data for multiple symbols."""
+    n_days = 50
+    dates = [datetime(2024, 1, 1) + timedelta(days=i) for i in range(n_days)]
+
+    prices = []
+    for symbol, base_price in [("AAPL", 100.0), ("GOOGL", 150.0)]:
+        for i, date in enumerate(dates):
+            close = base_price + i * 0.5
+            prices.append(
+                {
+                    "symbol": symbol,
+                    "timestamp": date,
+                    "open": close - 0.2,
+                    "high": close + 0.5,
+                    "low": close - 0.5,
+                    "close": close,
+                    "volume": 1000000,
+                }
+            )
+
+    return pl.DataFrame(prices)
+
+
+class TestTradeSignal:
+    """Tests for TradeSignal dataclass."""
+
+    def test_valid_trade_signal(self) -> None:
+        """Test creating a valid TradeSignal."""
+        signal = TradeSignal(
+            symbol="AAPL",
+            action="buy",
+            size=0.1,
+            confidence=0.8,
+            timestamp=datetime(2024, 1, 1),
+            predicted_return=0.02,
+        )
+
+        assert signal.symbol == "AAPL"
+        assert signal.action == "buy"
+        assert signal.size == 0.1
+        assert signal.confidence == 0.8
+
+    def test_invalid_action(self) -> None:
+        """Test error with invalid action."""
+        with pytest.raises(ValueError, match="Invalid action"):
+            TradeSignal(
+                symbol="AAPL",
+                action="invalid",  # type: ignore
+                size=0.1,
+                confidence=0.8,
+                timestamp=datetime(2024, 1, 1),
+            )
+
+    def test_invalid_size(self) -> None:
+        """Test error with invalid size."""
+        with pytest.raises(ValueError, match="Size must be between 0 and 1"):
+            TradeSignal(
+                symbol="AAPL",
+                action="buy",
+                size=1.5,
+                confidence=0.8,
+                timestamp=datetime(2024, 1, 1),
+            )
+
+    def test_invalid_confidence(self) -> None:
+        """Test error with invalid confidence."""
+        with pytest.raises(ValueError, match="Confidence must be between 0 and 1"):
+            TradeSignal(
+                symbol="AAPL",
+                action="buy",
+                size=0.1,
+                confidence=1.5,
+                timestamp=datetime(2024, 1, 1),
+            )
+
+
+class TestThresholdStrategy:
+    """Tests for ThresholdStrategy."""
+
+    def test_initialization_default(self) -> None:
+        """Test ThresholdStrategy with default parameters."""
+        strategy = ThresholdStrategy()
+
+        assert strategy.buy_threshold == 0.02
+        assert strategy.sell_threshold == -0.02
+        assert strategy.confidence_threshold == 0.6
+        assert strategy.max_positions == 10
+
+    def test_initialization_custom(self) -> None:
+        """Test ThresholdStrategy with custom parameters."""
+        strategy = ThresholdStrategy(
+            buy_threshold=0.03,
+            sell_threshold=-0.03,
+            confidence_threshold=0.7,
+            max_positions=5,
+        )
+
+        assert strategy.buy_threshold == 0.03
+        assert strategy.sell_threshold == -0.03
+        assert strategy.confidence_threshold == 0.7
+        assert strategy.max_positions == 5
+
+    def test_invalid_thresholds(self) -> None:
+        """Test error when buy threshold is not greater than sell threshold."""
+        with pytest.raises(ValueError, match="buy_threshold must be greater than sell_threshold"):
+            ThresholdStrategy(buy_threshold=0.01, sell_threshold=0.02)
+
+    def test_generate_signals_buy(self, sample_predictions: pl.DataFrame) -> None:
+        """Test generating buy signals."""
+        strategy = ThresholdStrategy(buy_threshold=0.02, confidence_threshold=0.6)
+
+        # Filter predictions that should generate buy signals
+        high_return_preds = sample_predictions.filter(pl.col("predicted_return") > 0.02)
+
+        signals = strategy.generate_signals(high_return_preds, {})
+
+        # Should generate some buy signals
+        assert len(signals) > 0
+        assert all(s.action == "buy" for s in signals)
+
+    def test_generate_signals_sell(self, sample_predictions: pl.DataFrame) -> None:
+        """Test generating sell signals."""
+        strategy = ThresholdStrategy(sell_threshold=-0.02, confidence_threshold=0.6)
+
+        # Create predictions with negative returns
+        low_return_preds = sample_predictions.with_columns(
+            pl.col("predicted_return").map_elements(lambda x: -abs(x), return_dtype=pl.Float64)
+        )
+
+        # Current positions
+        current_positions = {"AAPL": 0.1, "GOOGL": 0.1}
+
+        signals = strategy.generate_signals(low_return_preds, current_positions)
+
+        # Should generate sell signals for held positions
+        assert len(signals) > 0
+        assert all(s.action == "sell" for s in signals)
+
+    def test_generate_signals_max_positions(self, sample_predictions: pl.DataFrame) -> None:
+        """Test max positions constraint."""
+        strategy = ThresholdStrategy(buy_threshold=0.01, max_positions=1)
+
+        # Filter to a single timestamp to test
+        single_time_preds = sample_predictions.filter(
+            pl.col("timestamp") == sample_predictions["timestamp"][0]
+        )
+
+        signals = strategy.generate_signals(single_time_preds, {})
+
+        # Should not exceed max positions
+        buy_signals = [s for s in signals if s.action == "buy"]
+        assert len(buy_signals) <= 1
+
+    def test_generate_signals_confidence_filter(self, sample_predictions: pl.DataFrame) -> None:
+        """Test confidence filtering."""
+        strategy = ThresholdStrategy(buy_threshold=0.01, confidence_threshold=0.9)
+
+        signals = strategy.generate_signals(sample_predictions, {})
+
+        # High confidence threshold should filter out most signals
+        assert len(signals) < len(sample_predictions)
+
+
+class TestRankingStrategy:
+    """Tests for RankingStrategy."""
+
+    def test_initialization(self) -> None:
+        """Test RankingStrategy initialization."""
+        strategy = RankingStrategy(top_n=5, rebalance_frequency=5)
+
+        assert strategy.top_n == 5
+        assert strategy.rebalance_frequency == 5
+
+    def test_generate_signals_top_n(self, sample_predictions: pl.DataFrame) -> None:
+        """Test selecting top N stocks."""
+        strategy = RankingStrategy(top_n=2, rebalance_frequency=1, equal_weight=True)
+
+        signals = strategy.generate_signals(sample_predictions, {})
+
+        # Should generate signals for top 2 stocks
+        buy_signals = [s for s in signals if s.action == "buy"]
+        assert len(buy_signals) <= 2
+
+    def test_generate_signals_equal_weight(self, sample_predictions: pl.DataFrame) -> None:
+        """Test equal weighting."""
+        strategy = RankingStrategy(top_n=3, rebalance_frequency=1, equal_weight=True)
+
+        signals = strategy.generate_signals(sample_predictions, {})
+
+        buy_signals = [s for s in signals if s.action == "buy"]
+
+        # All buy signals should have equal size
+        if len(buy_signals) > 0:
+            expected_size = 1.0 / 3
+            for signal in buy_signals:
+                assert abs(signal.size - expected_size) < 0.01
+
+    def test_generate_signals_rebalance(self, sample_predictions: pl.DataFrame) -> None:
+        """Test rebalancing logic."""
+        strategy = RankingStrategy(top_n=2, rebalance_frequency=100)
+
+        # First call should generate signals
+        signals1 = strategy.generate_signals(sample_predictions, {})
+        assert len(signals1) > 0
+
+        # Second call (same timestamp) should not generate signals (too soon)
+        signals2 = strategy.generate_signals(sample_predictions, {})
+        assert len(signals2) == 0
+
+
+class TestLongShortStrategy:
+    """Tests for LongShortStrategy."""
+
+    def test_initialization(self) -> None:
+        """Test LongShortStrategy initialization."""
+        strategy = LongShortStrategy(long_n=5, short_n=5)
+
+        assert strategy.long_n == 5
+        assert strategy.short_n == 5
+
+    def test_generate_signals_long_short(self, sample_predictions: pl.DataFrame) -> None:
+        """Test generating long and short signals."""
+        # Need more predictions for long-short
+        strategy = LongShortStrategy(long_n=1, short_n=1, rebalance_frequency=1)
+
+        signals = strategy.generate_signals(sample_predictions, {})
+
+        # Should generate both long and short signals
+        buy_signals = [s for s in signals if s.action == "buy"]
+        sell_signals = [s for s in signals if s.action == "sell"]
+
+        assert len(buy_signals) > 0 or len(sell_signals) > 0
+
+    def test_generate_signals_insufficient_predictions(self) -> None:
+        """Test with insufficient predictions."""
+        small_preds = pl.DataFrame(
+            {
+                "symbol": ["AAPL"],
+                "timestamp": [datetime(2024, 1, 1)],
+                "predicted_return": [0.02],
+                "confidence": [0.8],
+            }
+        )
+
+        strategy = LongShortStrategy(long_n=5, short_n=5)
+
+        signals = strategy.generate_signals(small_preds, {})
+
+        # Should not generate signals without enough predictions
+        assert len(signals) == 0
+
+
+class TestBacktestEngineStrategies:
+    """Tests for BacktestEngine with strategies."""
+
+    def test_run_with_strategy_basic(
+        self,
+        sample_predictions: pl.DataFrame,
+        multi_symbol_prices: pl.DataFrame,
+    ) -> None:
+        """Test run_with_strategy method."""
+        engine = BacktestEngine()
+        strategy = ThresholdStrategy(buy_threshold=0.02)
+
+        result = engine.run_with_strategy(sample_predictions, multi_symbol_prices, strategy)
+
+        assert isinstance(result, BacktestResult)
+        assert result.total_trades >= 0
+        assert isinstance(result.equity_curve, pl.DataFrame)
+
+    def test_run_with_strategy_produces_metrics(
+        self,
+        sample_predictions: pl.DataFrame,
+        multi_symbol_prices: pl.DataFrame,
+    ) -> None:
+        """Test that strategy backtest produces all metrics."""
+        engine = BacktestEngine()
+        strategy = ThresholdStrategy()
+
+        result = engine.run_with_strategy(sample_predictions, multi_symbol_prices, strategy)
+
+        # Check all metrics are present
+        assert hasattr(result, "total_return")
+        assert hasattr(result, "sharpe_ratio")
+        assert hasattr(result, "sortino_ratio")
+        assert hasattr(result, "max_drawdown")
+        assert hasattr(result, "calmar_ratio")
+        assert hasattr(result, "win_rate")
+        assert hasattr(result, "profit_factor")
+
+    def test_run_with_strategy_trade_log(
+        self,
+        sample_predictions: pl.DataFrame,
+        multi_symbol_prices: pl.DataFrame,
+    ) -> None:
+        """Test trade log generation."""
+        engine = BacktestEngine()
+        strategy = ThresholdStrategy()
+
+        result = engine.run_with_strategy(sample_predictions, multi_symbol_prices, strategy)
+
+        # Trade log should be a DataFrame
+        assert isinstance(result.trade_log, pl.DataFrame)
+
+    def test_run_with_strategy_monthly_returns(
+        self,
+        sample_predictions: pl.DataFrame,
+        multi_symbol_prices: pl.DataFrame,
+    ) -> None:
+        """Test monthly returns calculation."""
+        engine = BacktestEngine()
+        strategy = ThresholdStrategy()
+
+        result = engine.run_with_strategy(sample_predictions, multi_symbol_prices, strategy)
+
+        # Monthly returns should be a DataFrame
+        assert isinstance(result.monthly_returns, pl.DataFrame)
+
+    def test_run_with_strategy_invalid_predictions(
+        self,
+        multi_symbol_prices: pl.DataFrame,
+    ) -> None:
+        """Test error with invalid predictions."""
+        invalid_preds = pl.DataFrame({"symbol": ["AAPL"], "timestamp": [datetime(2024, 1, 1)]})
+
+        engine = BacktestEngine()
+        strategy = ThresholdStrategy()
+
+        with pytest.raises(ValueError, match="Missing required prediction columns"):
+            engine.run_with_strategy(invalid_preds, multi_symbol_prices, strategy)
+
+
+class TestAdditionalMetrics:
+    """Tests for additional metric functions."""
+
+    def test_calculate_sortino_ratio_basic(self) -> None:
+        """Test Sortino ratio calculation."""
+        returns = pl.Series([0.01, -0.01, 0.02, -0.015, 0.03])
+
+        sortino = calculate_sortino_ratio(returns)
+
+        assert isinstance(sortino, float)
+        assert sortino != 0.0
+
+    def test_calculate_sortino_ratio_no_downside(self) -> None:
+        """Test Sortino ratio with no negative returns."""
+        returns = pl.Series([0.01, 0.02, 0.015, 0.03])
+
+        sortino = calculate_sortino_ratio(returns)
+
+        # Should return inf when no downside
+        assert sortino == float("inf")
+
+    def test_calculate_calmar_ratio_basic(self) -> None:
+        """Test Calmar ratio calculation."""
+        calmar = calculate_calmar_ratio(annualized_return=20.0, max_drawdown=10.0)
+
+        assert calmar == 2.0
+
+    def test_calculate_calmar_ratio_zero_drawdown(self) -> None:
+        """Test Calmar ratio with zero drawdown."""
+        calmar = calculate_calmar_ratio(annualized_return=20.0, max_drawdown=0.0)
+
+        assert calmar == 0.0
+
+    def test_calculate_information_ratio_basic(self) -> None:
+        """Test information ratio calculation."""
+        portfolio_returns = pl.Series([0.01, 0.02, -0.01, 0.015])
+        benchmark_returns = pl.Series([0.008, 0.015, -0.005, 0.012])
+
+        ir = calculate_information_ratio(portfolio_returns, benchmark_returns)
+
+        assert isinstance(ir, float)
+
+    def test_calculate_information_ratio_mismatched_length(self) -> None:
+        """Test information ratio with mismatched lengths."""
+        portfolio_returns = pl.Series([0.01, 0.02, -0.01])
+        benchmark_returns = pl.Series([0.008, 0.015])
+
+        ir = calculate_information_ratio(portfolio_returns, benchmark_returns)
+
+        assert ir == 0.0
+
+    def test_calculate_all_metrics(self) -> None:
+        """Test calculate_all function."""
+        equity = pl.Series([100000, 105000, 103000, 108000, 110000])
+        returns = equity.pct_change().drop_nulls()
+        trade_log = pl.DataFrame()
+
+        metrics = calculate_all(equity, returns, trade_log)
+
+        assert isinstance(metrics, dict)
+        assert "sharpe_ratio" in metrics
+        assert "sortino_ratio" in metrics
+        assert "max_drawdown" in metrics
+        assert "calmar_ratio" in metrics
+        assert "win_rate" in metrics
+
+
+class TestEdgeCases:
+    """Tests for edge cases and error conditions."""
+
+    def test_empty_equity_curve(self) -> None:
+        """Test metrics with empty equity curve."""
+        empty_equity = pl.Series([])
+        empty_returns = pl.Series([])
+
+        sharpe = calculate_sharpe_ratio(empty_returns)
+        max_dd = calculate_max_drawdown(empty_equity)
+
+        assert sharpe == 0.0
+        assert max_dd == 0.0
+
+    def test_single_value_equity_curve(self) -> None:
+        """Test metrics with single value."""
+        single_equity = pl.Series([100000])
+
+        max_dd = calculate_max_drawdown(single_equity)
+
+        assert max_dd == 0.0
+
+    def test_all_winning_trades_metrics(self) -> None:
+        """Test metrics with all winning trades."""
+        trades = [
+            Trade(
+                entry_date=datetime(2024, 1, i),
+                exit_date=datetime(2024, 1, i + 1),
+                entry_price=100.0,
+                exit_price=105.0,
+                position_size=100.0,
+                direction="long",
+                pnl=500.0,
+                return_pct=5.0,
+            )
+            for i in range(1, 6)
+        ]
+
+        win_rate = calculate_win_rate(trades)
+        profit_factor = calculate_profit_factor(trades)
+
+        assert win_rate == 100.0
+        assert profit_factor == float("inf")
+
+    def test_all_losing_trades_metrics(self) -> None:
+        """Test metrics with all losing trades."""
+        trades = [
+            Trade(
+                entry_date=datetime(2024, 1, i),
+                exit_date=datetime(2024, 1, i + 1),
+                entry_price=100.0,
+                exit_price=95.0,
+                position_size=100.0,
+                direction="long",
+                pnl=-500.0,
+                return_pct=-5.0,
+            )
+            for i in range(1, 6)
+        ]
+
+        win_rate = calculate_win_rate(trades)
+        profit_factor = calculate_profit_factor(trades)
+
+        assert win_rate == 0.0
+        assert profit_factor == 0.0

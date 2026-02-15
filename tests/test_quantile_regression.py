@@ -4,12 +4,11 @@ This module tests quantile regression implementations including:
 - Configuration validation
 - Model fitting and prediction
 - Prediction interval generation
-- Coverage calculation and calibration
+- Coverage calculation
 - Winkler score computation
-- Integration with feature engineering
-
-Tests use synthetic data with known properties to verify correctness.
 """
+
+from __future__ import annotations
 
 from datetime import datetime, timedelta
 
@@ -19,10 +18,9 @@ import pytest
 
 from signalforge.ml.models.base import BasePredictor
 from signalforge.ml.models.quantile_regression import (
-    QuantileGradientBoostingRegressor,
     QuantilePrediction,
     QuantileRegressionConfig,
-    QuantileRegressor,
+    QuantileRegressionPredictor,
     calculate_coverage,
     create_quantile_regressor,
     winkler_score,
@@ -30,69 +28,45 @@ from signalforge.ml.models.quantile_regression import (
 
 
 @pytest.fixture
-def sample_ohlcv_data() -> pl.DataFrame:
-    """Create synthetic OHLCV data with trend.
+def sample_features() -> pl.DataFrame:
+    """Create synthetic feature data for testing.
 
     Returns:
-        DataFrame with 100 rows of OHLCV data with upward trend.
+        DataFrame with 100 rows of feature data.
     """
     n_rows = 100
-    dates = [datetime(2024, 1, 1) + timedelta(days=i) for i in range(n_rows)]
-
-    # Create realistic price data with trend and volatility
     np.random.seed(42)
-    base_price = 100.0
-    trend = np.linspace(0, 20, n_rows)
-    noise = np.random.normal(0, 2, n_rows)
-    close_prices = base_price + trend + noise
 
     return pl.DataFrame(
         {
-            "timestamp": dates,
-            "open": close_prices * 0.99,
-            "high": close_prices * 1.02,
-            "low": close_prices * 0.98,
-            "close": close_prices,
-            "volume": np.random.randint(1000000, 2000000, n_rows),
+            "feature1": np.random.randn(n_rows),
+            "feature2": np.random.randn(n_rows),
+            "feature3": np.random.randn(n_rows),
         }
     )
 
 
 @pytest.fixture
-def sample_with_features() -> pl.DataFrame:
-    """Create data with technical indicators for feature testing.
+def sample_target() -> pl.Series:
+    """Create synthetic target data for testing.
 
     Returns:
-        DataFrame with OHLCV and technical indicators.
+        Series with 100 target values.
     """
-    n_rows = 100
-    dates = [datetime(2024, 1, 1) + timedelta(days=i) for i in range(n_rows)]
-
     np.random.seed(42)
-    base = 100.0
-    trend = np.linspace(0, 15, n_rows)
-    noise = np.random.normal(0, 1.5, n_rows)
-    close = base + trend + noise
-
-    return pl.DataFrame(
-        {
-            "timestamp": dates,
-            "open": close * 0.99,
-            "high": close * 1.01,
-            "low": close * 0.98,
-            "close": close,
-            "volume": np.random.randint(1000000, 2000000, n_rows),
-            "sma_20": close + np.random.normal(0, 0.5, n_rows),
-            "rsi": np.random.uniform(30, 70, n_rows),
-            "macd": np.random.normal(0, 0.3, n_rows),
-        }
-    )
+    n_rows = 100
+    # Target with some pattern + noise
+    return pl.Series(np.linspace(100, 120, n_rows) + np.random.randn(n_rows) * 2)
 
 
 @pytest.fixture
 def simple_quantile_config() -> QuantileRegressionConfig:
     """Create basic configuration for testing."""
-    return QuantileRegressionConfig(quantiles=[0.1, 0.5, 0.9], alpha=0.01, max_iter=500, n_lags=3)
+    return QuantileRegressionConfig(
+        quantiles=[0.1, 0.5, 0.9],
+        base_model="linear",
+        alpha=1.0,
+    )
 
 
 class TestQuantileRegressionConfig:
@@ -102,69 +76,59 @@ class TestQuantileRegressionConfig:
         """Test configuration with default values."""
         config = QuantileRegressionConfig()
 
-        assert config.quantiles == [0.1, 0.5, 0.9]
-        assert config.alpha == 0.1
-        assert config.max_iter == 1000
-        assert config.features is None
-        assert config.solver == "highs-ds"
-        assert config.n_lags == 5
+        assert config.quantiles == [0.1, 0.25, 0.5, 0.75, 0.9]
+        assert config.base_model == "gradient_boosting"
+        assert config.n_estimators == 100
+        assert config.learning_rate == 0.1
+        assert config.max_depth == 3
+        assert config.alpha == 1.0
 
     def test_custom_config(self) -> None:
         """Test configuration with custom values."""
         config = QuantileRegressionConfig(
             quantiles=[0.05, 0.25, 0.5, 0.75, 0.95],
+            base_model="linear",
+            n_estimators=200,
+            learning_rate=0.05,
+            max_depth=5,
             alpha=0.5,
-            max_iter=2000,
-            features=["close", "volume"],
-            solver="highs-ipm",
-            n_lags=10,
         )
 
         assert len(config.quantiles) == 5
+        assert config.base_model == "linear"
+        assert config.n_estimators == 200
+        assert config.learning_rate == 0.05
+        assert config.max_depth == 5
         assert config.alpha == 0.5
-        assert config.max_iter == 2000
-        assert config.features == ["close", "volume"]
-        assert config.solver == "highs-ipm"
-        assert config.n_lags == 10
 
-    def test_invalid_quantiles_range(self) -> None:
-        """Test validation of quantile range."""
-        with pytest.raises(ValueError, match="must be in range"):
-            QuantileRegressionConfig(quantiles=[0.0, 0.5, 1.0])
+    def test_invalid_n_estimators(self) -> None:
+        """Test validation of n_estimators parameter."""
+        with pytest.raises(ValueError):
+            QuantileRegressionConfig(n_estimators=0)
 
-        with pytest.raises(ValueError, match="must be in range"):
-            QuantileRegressionConfig(quantiles=[-0.1, 0.5, 0.9])
+        with pytest.raises(ValueError):
+            QuantileRegressionConfig(n_estimators=-100)
 
-        with pytest.raises(ValueError, match="must be in range"):
-            QuantileRegressionConfig(quantiles=[0.1, 0.5, 1.5])
+    def test_invalid_learning_rate(self) -> None:
+        """Test validation of learning_rate parameter."""
+        with pytest.raises(ValueError):
+            QuantileRegressionConfig(learning_rate=0.0)
 
-    def test_empty_quantiles(self) -> None:
-        """Test validation for empty quantiles list."""
-        with pytest.raises(ValueError, match="At least one quantile"):
-            QuantileRegressionConfig(quantiles=[])
+        with pytest.raises(ValueError):
+            QuantileRegressionConfig(learning_rate=-0.1)
 
-    def test_duplicate_quantiles(self) -> None:
-        """Test validation for duplicate quantiles."""
-        with pytest.raises(ValueError, match="must be unique"):
-            QuantileRegressionConfig(quantiles=[0.1, 0.5, 0.5, 0.9])
+    def test_invalid_max_depth(self) -> None:
+        """Test validation of max_depth parameter."""
+        with pytest.raises(ValueError):
+            QuantileRegressionConfig(max_depth=0)
 
-    def test_negative_alpha(self) -> None:
+    def test_invalid_alpha(self) -> None:
         """Test validation of alpha parameter."""
-        with pytest.raises(ValueError, match="must be non-negative"):
+        with pytest.raises(ValueError):
+            QuantileRegressionConfig(alpha=0.0)
+
+        with pytest.raises(ValueError):
             QuantileRegressionConfig(alpha=-0.1)
-
-    def test_invalid_max_iter(self) -> None:
-        """Test validation of max_iter parameter."""
-        with pytest.raises(ValueError, match="must be positive"):
-            QuantileRegressionConfig(max_iter=0)
-
-        with pytest.raises(ValueError, match="must be positive"):
-            QuantileRegressionConfig(max_iter=-100)
-
-    def test_negative_lags(self) -> None:
-        """Test validation of n_lags parameter."""
-        with pytest.raises(ValueError, match="must be non-negative"):
-            QuantileRegressionConfig(n_lags=-1)
 
 
 class TestQuantilePrediction:
@@ -173,565 +137,496 @@ class TestQuantilePrediction:
     def test_valid_prediction(self) -> None:
         """Test creation of valid prediction."""
         pred = QuantilePrediction(
-            point_forecast=100.0,
+            prediction=100.0,
+            quantile_values={0.1: 95.0, 0.5: 100.0, 0.9: 105.0},
             lower_bound=95.0,
             upper_bound=105.0,
-            all_quantiles={0.1: 95.0, 0.5: 100.0, 0.9: 105.0},
-            coverage=0.8,
-            timestamp=datetime(2024, 1, 1),
+            confidence=0.8,
         )
 
-        assert pred.point_forecast == 100.0
+        assert pred.prediction == 100.0
         assert pred.lower_bound == 95.0
         assert pred.upper_bound == 105.0
-        assert pred.coverage == 0.8
-        assert len(pred.all_quantiles) == 3
+        assert pred.confidence == 0.8
+        assert len(pred.quantile_values) == 3
 
-    def test_invalid_coverage(self) -> None:
-        """Test validation of coverage parameter."""
-        with pytest.raises(ValueError, match="Coverage must be in"):
-            QuantilePrediction(
-                point_forecast=100.0,
-                lower_bound=95.0,
-                upper_bound=105.0,
-                all_quantiles={0.5: 100.0},
-                coverage=1.5,
-            )
+    def test_default_values(self) -> None:
+        """Test prediction with default values."""
+        pred = QuantilePrediction(prediction=100.0)
 
-    def test_inconsistent_bounds_warning(self, caplog: pytest.LogCaptureFixture) -> None:
-        """Test warning for inconsistent prediction bounds."""
-        # Lower bound exceeds point forecast
-        _pred = QuantilePrediction(
-            point_forecast=100.0,
-            lower_bound=102.0,
-            upper_bound=105.0,
-            all_quantiles={0.5: 100.0},
-            coverage=0.8,
+        assert pred.prediction == 100.0
+        assert pred.quantile_values == {}
+        assert pred.lower_bound == 0.0
+        assert pred.upper_bound == 0.0
+        assert pred.confidence == 0.0
+
+
+class TestQuantileRegressionPredictor:
+    """Tests for QuantileRegressionPredictor class."""
+
+    def test_initialization_default(self) -> None:
+        """Test predictor initialization with defaults."""
+        predictor = QuantileRegressionPredictor()
+
+        assert predictor.quantiles == [0.1, 0.25, 0.5, 0.75, 0.9]
+        assert predictor.base_model == "gradient_boosting"
+        assert predictor._fitted is False
+
+    def test_initialization_custom(self) -> None:
+        """Test predictor initialization with custom values."""
+        predictor = QuantileRegressionPredictor(
+            quantiles=[0.1, 0.5, 0.9],
+            base_model="linear",
         )
 
-        assert "exceeds point forecast" in caplog.text
+        assert predictor.quantiles == [0.1, 0.5, 0.9]
+        assert predictor.base_model == "linear"
 
-    def test_none_timestamp(self) -> None:
-        """Test prediction with no timestamp."""
-        pred = QuantilePrediction(
-            point_forecast=100.0,
-            lower_bound=95.0,
-            upper_bound=105.0,
-            all_quantiles={0.5: 100.0},
-            coverage=0.8,
-        )
+    def test_initialization_invalid_empty_quantiles(self) -> None:
+        """Test error with empty quantiles."""
+        with pytest.raises(ValueError, match="At least one quantile"):
+            QuantileRegressionPredictor(quantiles=[])
 
-        assert pred.timestamp is None
+    def test_initialization_invalid_quantile_range(self) -> None:
+        """Test error with quantiles outside (0, 1)."""
+        with pytest.raises(ValueError, match="must be in range"):
+            QuantileRegressionPredictor(quantiles=[0.0, 0.5, 0.9])
 
+        with pytest.raises(ValueError, match="must be in range"):
+            QuantileRegressionPredictor(quantiles=[0.1, 0.5, 1.0])
 
-class TestQuantileRegressor:
-    """Tests for linear QuantileRegressor."""
+        with pytest.raises(ValueError, match="must be in range"):
+            QuantileRegressionPredictor(quantiles=[-0.1, 0.5, 0.9])
 
-    def test_initialization(self, simple_quantile_config: QuantileRegressionConfig) -> None:
-        """Test model initialization."""
-        model = QuantileRegressor(simple_quantile_config)
+    def test_initialization_duplicate_quantiles(self) -> None:
+        """Test error with duplicate quantiles."""
+        with pytest.raises(ValueError, match="must be unique"):
+            QuantileRegressionPredictor(quantiles=[0.1, 0.5, 0.5, 0.9])
 
-        assert not model.is_fitted
-        assert model.config == simple_quantile_config
-        assert len(model._models) == 0
-        assert model._training_data is None
+    def test_implements_base_predictor(self) -> None:
+        """Test that predictor implements BasePredictor interface."""
+        predictor = QuantileRegressionPredictor()
 
-    def test_implements_base_predictor(
-        self, simple_quantile_config: QuantileRegressionConfig
-    ) -> None:
-        """Test that model implements BasePredictor interface."""
-        model = QuantileRegressor(simple_quantile_config)
-
-        assert isinstance(model, BasePredictor)
-        assert hasattr(model, "fit")
-        assert hasattr(model, "predict")
-        assert hasattr(model, "evaluate")
-        assert hasattr(model, "is_fitted")
+        assert isinstance(predictor, BasePredictor)
+        assert hasattr(predictor, "fit")
+        assert hasattr(predictor, "predict")
+        assert hasattr(predictor, "model_name")
+        assert hasattr(predictor, "model_version")
 
     def test_fit_basic(
-        self, sample_ohlcv_data: pl.DataFrame, simple_quantile_config: QuantileRegressionConfig
+        self, sample_features: pl.DataFrame, sample_target: pl.Series
     ) -> None:
         """Test basic model fitting."""
-        model = QuantileRegressor(simple_quantile_config)
-        model.fit(sample_ohlcv_data, target_column="close")
-
-        assert model.is_fitted
-        assert len(model._models) == 3  # Three quantiles
-        assert model._training_data is not None
-        assert model._target_column == "close"
-        assert len(model._feature_columns) > 0
-
-    def test_fit_with_features(self, sample_with_features: pl.DataFrame) -> None:
-        """Test fitting with specified features."""
-        config = QuantileRegressionConfig(
-            quantiles=[0.1, 0.5, 0.9], features=["open", "high", "low", "volume", "sma_20"]
+        predictor = QuantileRegressionPredictor(
+            quantiles=[0.1, 0.5, 0.9],
+            base_model="linear",
         )
-        model = QuantileRegressor(config)
-        model.fit(sample_with_features, target_column="close")
+        result = predictor.fit(sample_features, sample_target)
 
-        assert model.is_fitted
-        # Should have specified features + lag features
-        assert "open" in model._feature_columns
-        assert "sma_20" in model._feature_columns
+        assert predictor._fitted is True
+        assert len(predictor._models) == 3  # Three quantiles
+        assert result is predictor  # Returns self
 
-    def test_fit_empty_dataframe(self, simple_quantile_config: QuantileRegressionConfig) -> None:
-        """Test fitting with empty DataFrame."""
-        model = QuantileRegressor(simple_quantile_config)
-        empty_df = pl.DataFrame()
-
-        with pytest.raises(ValueError, match="empty DataFrame"):
-            model.fit(empty_df)
-
-    def test_fit_missing_target(
-        self, sample_ohlcv_data: pl.DataFrame, simple_quantile_config: QuantileRegressionConfig
+    def test_fit_gradient_boosting(
+        self, sample_features: pl.DataFrame, sample_target: pl.Series
     ) -> None:
-        """Test fitting with missing target column."""
-        model = QuantileRegressor(simple_quantile_config)
-
-        with pytest.raises(ValueError, match="not found"):
-            model.fit(sample_ohlcv_data, target_column="nonexistent")
-
-    def test_fit_missing_features(self, sample_ohlcv_data: pl.DataFrame) -> None:
-        """Test fitting with specified features that don't exist."""
-        config = QuantileRegressionConfig(features=["nonexistent_feature"])
-        model = QuantileRegressor(config)
-
-        with pytest.raises(ValueError, match="not found in DataFrame"):
-            model.fit(sample_ohlcv_data)
-
-    def test_fit_insufficient_data(self, simple_quantile_config: QuantileRegressionConfig) -> None:
-        """Test fitting with very small dataset."""
-        small_df = pl.DataFrame(
-            {
-                "timestamp": [datetime(2024, 1, 1) + timedelta(days=i) for i in range(5)],
-                "close": [100.0, 101.0, 102.0, 103.0, 104.0],
-                "open": [99.0, 100.0, 101.0, 102.0, 103.0],
-            }
+        """Test fitting with gradient boosting."""
+        predictor = QuantileRegressionPredictor(
+            quantiles=[0.1, 0.5, 0.9],
+            base_model="gradient_boosting",
         )
+        predictor.fit(sample_features, sample_target, n_estimators=20)
 
-        model = QuantileRegressor(simple_quantile_config)
+        assert predictor._fitted is True
+        assert len(predictor._models) == 3
 
-        with pytest.raises(ValueError, match="Insufficient training data"):
-            model.fit(small_df)
+    def test_fit_empty_dataframe(self) -> None:
+        """Test fitting with empty DataFrame."""
+        predictor = QuantileRegressionPredictor()
+        empty_df = pl.DataFrame({"a": []})
+        empty_series = pl.Series([])
+
+        with pytest.raises(ValueError, match="Cannot fit on empty data"):
+            predictor.fit(empty_df, empty_series)
+
+    def test_fit_mismatched_lengths(
+        self, sample_features: pl.DataFrame
+    ) -> None:
+        """Test fitting with mismatched X and y lengths."""
+        predictor = QuantileRegressionPredictor()
+        short_target = pl.Series([1.0, 2.0, 3.0])
+
+        with pytest.raises(ValueError, match="same length"):
+            predictor.fit(sample_features, short_target)
 
     def test_predict_basic(
-        self, sample_ohlcv_data: pl.DataFrame, simple_quantile_config: QuantileRegressionConfig
+        self, sample_features: pl.DataFrame, sample_target: pl.Series
     ) -> None:
         """Test basic prediction generation."""
-        model = QuantileRegressor(simple_quantile_config)
-        model.fit(sample_ohlcv_data, target_column="close")
+        predictor = QuantileRegressionPredictor(
+            quantiles=[0.1, 0.5, 0.9],
+            base_model="linear",
+        )
+        predictor.fit(sample_features, sample_target)
 
-        predictions = model.predict(horizon=10)
+        predictions = predictor.predict(sample_features)
 
-        assert predictions.height == 10
-        assert "timestamp" in predictions.columns
-        assert "prediction" in predictions.columns
-        assert "lower_bound" in predictions.columns
-        assert "upper_bound" in predictions.columns
-        assert "coverage" in predictions.columns
-        assert "quantile_0.1" in predictions.columns
-        assert "quantile_0.5" in predictions.columns
-        assert "quantile_0.9" in predictions.columns
+        assert len(predictions) == sample_features.height
+        assert all(hasattr(p, "prediction") for p in predictions)
+        assert all(hasattr(p, "lower_bound") for p in predictions)
+        assert all(hasattr(p, "upper_bound") for p in predictions)
+        assert all(hasattr(p, "confidence") for p in predictions)
 
-    def test_predict_without_fit(self, simple_quantile_config: QuantileRegressionConfig) -> None:
+    def test_predict_without_fit(self, sample_features: pl.DataFrame) -> None:
         """Test prediction before fitting."""
-        model = QuantileRegressor(simple_quantile_config)
+        predictor = QuantileRegressionPredictor()
 
         with pytest.raises(RuntimeError, match="must be fitted"):
-            model.predict(horizon=10)
+            predictor.predict(sample_features)
 
-    def test_predict_invalid_horizon(
-        self, sample_ohlcv_data: pl.DataFrame, simple_quantile_config: QuantileRegressionConfig
+    def test_predict_feature_mismatch(
+        self, sample_features: pl.DataFrame, sample_target: pl.Series
     ) -> None:
-        """Test prediction with invalid horizon."""
-        model = QuantileRegressor(simple_quantile_config)
-        model.fit(sample_ohlcv_data)
+        """Test prediction with wrong features."""
+        predictor = QuantileRegressionPredictor(
+            quantiles=[0.1, 0.5, 0.9],
+            base_model="linear",
+        )
+        predictor.fit(sample_features, sample_target)
 
-        with pytest.raises(ValueError, match="must be positive"):
-            model.predict(horizon=0)
+        wrong_features = pl.DataFrame({"wrong": [1.0, 2.0, 3.0]})
 
-        with pytest.raises(ValueError, match="must be positive"):
-            model.predict(horizon=-5)
+        with pytest.raises(ValueError, match="Feature mismatch"):
+            predictor.predict(wrong_features)
 
     def test_prediction_intervals_ordered(
-        self, sample_ohlcv_data: pl.DataFrame, simple_quantile_config: QuantileRegressionConfig
+        self, sample_features: pl.DataFrame, sample_target: pl.Series
     ) -> None:
         """Test that prediction intervals are properly ordered."""
-        model = QuantileRegressor(simple_quantile_config)
-        model.fit(sample_ohlcv_data)
-
-        predictions = model.predict(horizon=5)
-
-        # Check that lower <= point <= upper for each prediction
-        for i in range(predictions.height):
-            row = predictions.row(i, named=True)
-            # Allow small numerical errors
-            assert row["lower_bound"] <= row["prediction"] + 0.01
-            assert row["prediction"] <= row["upper_bound"] + 0.01
-
-    def test_evaluate_basic(
-        self, sample_ohlcv_data: pl.DataFrame, simple_quantile_config: QuantileRegressionConfig
-    ) -> None:
-        """Test basic model evaluation."""
-        # Split data
-        train_df = sample_ohlcv_data.head(70)
-        test_df = sample_ohlcv_data.tail(30)
-
-        model = QuantileRegressor(simple_quantile_config)
-        model.fit(train_df)
-
-        metrics = model.evaluate(test_df)
-
-        assert "rmse" in metrics
-        assert "mae" in metrics
-        assert "mape" in metrics
-        assert "empirical_coverage" in metrics
-        assert "expected_coverage" in metrics
-        assert "coverage_deviation" in metrics
-        assert "winkler_score" in metrics
-        assert "interval_width" in metrics
-
-        # Check metric validity
-        assert metrics["rmse"] >= 0
-        assert metrics["mae"] >= 0
-        assert metrics["mape"] >= 0
-        assert 0 <= metrics["empirical_coverage"] <= 1
-        assert metrics["expected_coverage"] == 0.8  # 0.9 - 0.1
-        assert metrics["interval_width"] > 0
-
-    def test_evaluate_without_fit(
-        self, sample_ohlcv_data: pl.DataFrame, simple_quantile_config: QuantileRegressionConfig
-    ) -> None:
-        """Test evaluation before fitting."""
-        model = QuantileRegressor(simple_quantile_config)
-
-        with pytest.raises(RuntimeError, match="must be fitted"):
-            model.evaluate(sample_ohlcv_data)
-
-    def test_evaluate_empty_dataframe(
-        self, sample_ohlcv_data: pl.DataFrame, simple_quantile_config: QuantileRegressionConfig
-    ) -> None:
-        """Test evaluation with empty test set."""
-        model = QuantileRegressor(simple_quantile_config)
-        model.fit(sample_ohlcv_data)
-
-        empty_df = pl.DataFrame()
-
-        with pytest.raises(ValueError, match="cannot be empty"):
-            model.evaluate(empty_df)
-
-    def test_evaluate_missing_target(
-        self, sample_ohlcv_data: pl.DataFrame, simple_quantile_config: QuantileRegressionConfig
-    ) -> None:
-        """Test evaluation with missing target column."""
-        model = QuantileRegressor(simple_quantile_config)
-        model.fit(sample_ohlcv_data.head(70), target_column="close")
-
-        test_df = sample_ohlcv_data.tail(30).drop("close")
-
-        with pytest.raises(ValueError, match="not found"):
-            model.evaluate(test_df)
-
-
-class TestQuantileGradientBoostingRegressor:
-    """Tests for gradient boosting quantile regressor."""
-
-    def test_initialization(self, simple_quantile_config: QuantileRegressionConfig) -> None:
-        """Test model initialization."""
-        model = QuantileGradientBoostingRegressor(
-            simple_quantile_config, n_estimators=50, learning_rate=0.05, max_depth=4
+        predictor = QuantileRegressionPredictor(
+            quantiles=[0.1, 0.5, 0.9],
+            base_model="linear",
         )
+        predictor.fit(sample_features, sample_target)
 
-        assert not model.is_fitted
-        assert model.config == simple_quantile_config
-        assert model.n_estimators == 50
-        assert model.learning_rate == 0.05
-        assert model.max_depth == 4
+        predictions = predictor.predict(sample_features)
 
-    def test_implements_base_predictor(
-        self, simple_quantile_config: QuantileRegressionConfig
+        # Check that lower <= prediction <= upper for most predictions
+        for pred in predictions:
+            assert pred.lower_bound <= pred.upper_bound
+
+    def test_predict_proba(
+        self, sample_features: pl.DataFrame, sample_target: pl.Series
     ) -> None:
-        """Test that model implements BasePredictor interface."""
-        model = QuantileGradientBoostingRegressor(simple_quantile_config)
-
-        assert isinstance(model, BasePredictor)
-
-    def test_fit_basic(
-        self, sample_ohlcv_data: pl.DataFrame, simple_quantile_config: QuantileRegressionConfig
-    ) -> None:
-        """Test basic model fitting."""
-        model = QuantileGradientBoostingRegressor(
-            simple_quantile_config, n_estimators=20, random_state=42
+        """Test predict_proba returns DataFrame with quantiles."""
+        predictor = QuantileRegressionPredictor(
+            quantiles=[0.1, 0.5, 0.9],
+            base_model="linear",
         )
-        model.fit(sample_ohlcv_data, target_column="close")
+        predictor.fit(sample_features, sample_target)
 
-        assert model.is_fitted
-        assert len(model._models) == 3
+        proba_df = predictor.predict_proba(sample_features)
 
-    def test_predict_basic(
-        self, sample_ohlcv_data: pl.DataFrame, simple_quantile_config: QuantileRegressionConfig
+        assert isinstance(proba_df, pl.DataFrame)
+        assert proba_df.height == sample_features.height
+        assert "prediction" in proba_df.columns
+        assert "lower_bound" in proba_df.columns
+        assert "upper_bound" in proba_df.columns
+        assert "quantile_0.1" in proba_df.columns
+        assert "quantile_0.5" in proba_df.columns
+        assert "quantile_0.9" in proba_df.columns
+
+    def test_predict_intervals(
+        self, sample_features: pl.DataFrame, sample_target: pl.Series
     ) -> None:
-        """Test prediction generation."""
-        model = QuantileGradientBoostingRegressor(
-            simple_quantile_config, n_estimators=20, random_state=42
+        """Test prediction interval generation."""
+        predictor = QuantileRegressionPredictor(
+            quantiles=[0.1, 0.5, 0.9],
+            base_model="linear",
         )
-        model.fit(sample_ohlcv_data)
+        predictor.fit(sample_features, sample_target)
 
-        predictions = model.predict(horizon=5)
+        intervals_df = predictor.predict_intervals(sample_features, confidence=0.8)
 
-        assert predictions.height == 5
-        assert "prediction" in predictions.columns
-        assert "lower_bound" in predictions.columns
-        assert "upper_bound" in predictions.columns
+        assert isinstance(intervals_df, pl.DataFrame)
+        assert "prediction" in intervals_df.columns
+        assert "lower_bound" in intervals_df.columns
+        assert "upper_bound" in intervals_df.columns
+        assert "confidence" in intervals_df.columns
+        assert "interval_width" in intervals_df.columns
 
-    def test_evaluate_basic(
-        self, sample_ohlcv_data: pl.DataFrame, simple_quantile_config: QuantileRegressionConfig
+    def test_predict_intervals_invalid_confidence(
+        self, sample_features: pl.DataFrame, sample_target: pl.Series
     ) -> None:
-        """Test model evaluation."""
-        train_df = sample_ohlcv_data.head(70)
-        test_df = sample_ohlcv_data.tail(30)
-
-        model = QuantileGradientBoostingRegressor(
-            simple_quantile_config, n_estimators=20, random_state=42
+        """Test predict_intervals with invalid confidence."""
+        predictor = QuantileRegressionPredictor(
+            quantiles=[0.1, 0.5, 0.9],
+            base_model="linear",
         )
-        model.fit(train_df)
+        predictor.fit(sample_features, sample_target)
 
-        metrics = model.evaluate(test_df)
+        with pytest.raises(ValueError, match="Confidence must be in"):
+            predictor.predict_intervals(sample_features, confidence=0.0)
 
-        assert "rmse" in metrics
-        assert "empirical_coverage" in metrics
-        assert metrics["rmse"] >= 0
+        with pytest.raises(ValueError, match="Confidence must be in"):
+            predictor.predict_intervals(sample_features, confidence=1.0)
+
+    def test_calibrate_intervals(
+        self, sample_features: pl.DataFrame, sample_target: pl.Series
+    ) -> None:
+        """Test interval calibration."""
+        predictor = QuantileRegressionPredictor(
+            quantiles=[0.1, 0.5, 0.9],
+            base_model="linear",
+        )
+        predictor.fit(sample_features, sample_target)
+
+        calibration = predictor.calibrate_intervals(sample_features, sample_target)
+
+        assert isinstance(calibration, dict)
+        assert len(calibration) > 0
+        # Check coverage values are in valid range
+        for coverage in calibration.values():
+            assert 0.0 <= coverage <= 1.0
 
 
 class TestHelperFunctions:
     """Tests for helper functions."""
 
-    def test_create_quantile_regressor_linear(
-        self, simple_quantile_config: QuantileRegressionConfig
-    ) -> None:
-        """Test factory function for linear model."""
-        model = create_quantile_regressor(simple_quantile_config, method="linear")
+    def test_create_quantile_regressor_default(self) -> None:
+        """Test factory function with default config."""
+        predictor = create_quantile_regressor()
 
-        assert isinstance(model, QuantileRegressor)
-        assert isinstance(model, BasePredictor)
+        assert isinstance(predictor, QuantileRegressionPredictor)
+        assert predictor.quantiles == [0.1, 0.25, 0.5, 0.75, 0.9]
 
-    def test_create_quantile_regressor_gbm(
-        self, simple_quantile_config: QuantileRegressionConfig
-    ) -> None:
-        """Test factory function for GBM model."""
-        model = create_quantile_regressor(simple_quantile_config, method="gbm")
+    def test_create_quantile_regressor_with_config(self) -> None:
+        """Test factory function with custom config."""
+        config = QuantileRegressionConfig(
+            quantiles=[0.1, 0.5, 0.9],
+            base_model="linear",
+        )
+        predictor = create_quantile_regressor(config)
 
-        assert isinstance(model, QuantileGradientBoostingRegressor)
-        assert isinstance(model, BasePredictor)
-
-    def test_create_quantile_regressor_invalid_method(
-        self, simple_quantile_config: QuantileRegressionConfig
-    ) -> None:
-        """Test factory function with invalid method."""
-        with pytest.raises(ValueError, match="Invalid method"):
-            create_quantile_regressor(simple_quantile_config, method="invalid")  # type: ignore
+        assert isinstance(predictor, QuantileRegressionPredictor)
+        assert predictor.quantiles == [0.1, 0.5, 0.9]
+        assert predictor.base_model == "linear"
 
     def test_calculate_coverage_basic(self) -> None:
         """Test coverage calculation."""
-        predictions = pl.DataFrame(
-            {
-                "lower_bound": [95.0, 98.0, 101.0, 104.0],
-                "upper_bound": [105.0, 108.0, 111.0, 114.0],
-            }
-        )
-        actuals = pl.Series([100.0, 107.0, 115.0, 109.0])  # 3 out of 4 in interval
+        y_actual = np.array([100.0, 107.0, 115.0, 109.0])
+        lower = np.array([95.0, 98.0, 101.0, 104.0])
+        upper = np.array([105.0, 108.0, 111.0, 114.0])
 
-        coverage = calculate_coverage(predictions, actuals)
+        coverage = calculate_coverage(y_actual, lower, upper)
 
-        assert coverage == 0.75
+        assert coverage == 0.75  # 3 out of 4 in interval
 
     def test_calculate_coverage_perfect(self) -> None:
         """Test coverage with all values in interval."""
-        predictions = pl.DataFrame(
-            {"lower_bound": [95.0, 95.0, 95.0], "upper_bound": [105.0, 105.0, 105.0]}
-        )
-        actuals = pl.Series([100.0, 98.0, 102.0])
+        y_actual = np.array([100.0, 98.0, 102.0])
+        lower = np.array([95.0, 95.0, 95.0])
+        upper = np.array([105.0, 105.0, 105.0])
 
-        coverage = calculate_coverage(predictions, actuals)
+        coverage = calculate_coverage(y_actual, lower, upper)
 
         assert coverage == 1.0
 
     def test_calculate_coverage_none(self) -> None:
         """Test coverage with no values in interval."""
-        predictions = pl.DataFrame(
-            {"lower_bound": [95.0, 95.0, 95.0], "upper_bound": [100.0, 100.0, 100.0]}
-        )
-        actuals = pl.Series([110.0, 120.0, 115.0])
+        y_actual = np.array([110.0, 120.0, 115.0])
+        lower = np.array([95.0, 95.0, 95.0])
+        upper = np.array([100.0, 100.0, 100.0])
 
-        coverage = calculate_coverage(predictions, actuals)
+        coverage = calculate_coverage(y_actual, lower, upper)
 
         assert coverage == 0.0
 
-    def test_calculate_coverage_custom_columns(self) -> None:
-        """Test coverage with custom column names."""
-        predictions = pl.DataFrame({"pred_lower": [95.0, 98.0], "pred_upper": [105.0, 108.0]})
-        actuals = pl.Series([100.0, 107.0])
+    def test_calculate_coverage_boundary(self) -> None:
+        """Test coverage with values on boundary."""
+        y_actual = np.array([95.0, 105.0])  # Exactly on bounds
+        lower = np.array([95.0, 95.0])
+        upper = np.array([105.0, 105.0])
 
-        coverage = calculate_coverage(
-            predictions, actuals, lower_col="pred_lower", upper_col="pred_upper"
-        )
+        coverage = calculate_coverage(y_actual, lower, upper)
 
-        assert coverage == 1.0
-
-    def test_calculate_coverage_missing_columns(self) -> None:
-        """Test coverage with missing columns."""
-        predictions = pl.DataFrame({"lower": [95.0], "upper": [105.0]})
-        actuals = pl.Series([100.0])
-
-        with pytest.raises(ValueError, match="must exist"):
-            calculate_coverage(predictions, actuals)
-
-    def test_calculate_coverage_length_mismatch(self) -> None:
-        """Test coverage with length mismatch."""
-        predictions = pl.DataFrame({"lower_bound": [95.0, 98.0], "upper_bound": [105.0, 108.0]})
-        actuals = pl.Series([100.0])
-
-        with pytest.raises(ValueError, match="Length mismatch"):
-            calculate_coverage(predictions, actuals)
+        assert coverage == 1.0  # Boundary values should count as in interval
 
     def test_winkler_score_perfect(self) -> None:
         """Test Winkler score with perfect intervals (no violations)."""
+        y_actual = np.array([100.0, 103.0, 106.0])
         lower = np.array([95.0, 98.0, 101.0])
         upper = np.array([105.0, 108.0, 111.0])
-        actual = np.array([100.0, 103.0, 106.0])
         alpha = 0.2
 
-        score = winkler_score(lower, upper, actual, alpha)
+        score = winkler_score(y_actual, lower, upper, alpha)
 
         # Should equal average interval width (10.0)
         assert score == 10.0
 
     def test_winkler_score_with_violations(self) -> None:
         """Test Winkler score with interval violations."""
+        y_actual = np.array([110.0, 90.0])  # Both violate
         lower = np.array([95.0, 98.0])
         upper = np.array([105.0, 108.0])
-        actual = np.array([110.0, 90.0])  # Both violate
         alpha = 0.2
 
-        score = winkler_score(lower, upper, actual, alpha)
+        score = winkler_score(y_actual, lower, upper, alpha)
 
         # Should be higher due to penalties
         assert score > 10.0  # Greater than just interval width
 
     def test_winkler_score_narrow_intervals(self) -> None:
         """Test that narrower intervals get better scores (if no violations)."""
+        y_actual = np.array([100.0, 100.0])
         lower_wide = np.array([90.0, 90.0])
         upper_wide = np.array([110.0, 110.0])
         lower_narrow = np.array([95.0, 95.0])
         upper_narrow = np.array([105.0, 105.0])
-        actual = np.array([100.0, 100.0])
         alpha = 0.2
 
-        score_wide = winkler_score(lower_wide, upper_wide, actual, alpha)
-        score_narrow = winkler_score(lower_narrow, upper_narrow, actual, alpha)
+        score_wide = winkler_score(y_actual, lower_wide, upper_wide, alpha)
+        score_narrow = winkler_score(y_actual, lower_narrow, upper_narrow, alpha)
 
         assert score_narrow < score_wide
 
-    def test_winkler_score_invalid_alpha(self) -> None:
-        """Test Winkler score with invalid alpha."""
+    def test_winkler_score_below_lower(self) -> None:
+        """Test Winkler score when actual is below lower bound."""
+        y_actual = np.array([90.0])  # Below lower
         lower = np.array([95.0])
         upper = np.array([105.0])
-        actual = np.array([100.0])
+        alpha = 0.2
 
-        with pytest.raises(ValueError, match="Alpha must be in"):
-            winkler_score(lower, upper, actual, alpha=0.0)
+        score = winkler_score(y_actual, lower, upper, alpha)
 
-        with pytest.raises(ValueError, match="Alpha must be in"):
-            winkler_score(lower, upper, actual, alpha=1.5)
+        # Penalty: (2/0.2) * (95 - 90) = 10 * 5 = 50, plus interval width 10 = 60
+        assert score == pytest.approx(60.0, rel=0.01)
 
-    def test_winkler_score_length_mismatch(self) -> None:
-        """Test Winkler score with mismatched array lengths."""
-        lower = np.array([95.0, 98.0])
+    def test_winkler_score_above_upper(self) -> None:
+        """Test Winkler score when actual is above upper bound."""
+        y_actual = np.array([110.0])  # Above upper
+        lower = np.array([95.0])
         upper = np.array([105.0])
-        actual = np.array([100.0])
+        alpha = 0.2
 
-        with pytest.raises(ValueError, match="same length"):
-            winkler_score(lower, upper, actual, alpha=0.2)
+        score = winkler_score(y_actual, lower, upper, alpha)
+
+        # Penalty: (2/0.2) * (110 - 105) = 10 * 5 = 50, plus interval width 10 = 60
+        assert score == pytest.approx(60.0, rel=0.01)
 
 
 class TestIntegration:
-    """Integration tests with realistic scenarios."""
+    """Integration tests for complete workflows."""
 
-    def test_full_workflow_linear(self, sample_with_features: pl.DataFrame) -> None:
+    def test_full_workflow_linear(
+        self, sample_features: pl.DataFrame, sample_target: pl.Series
+    ) -> None:
         """Test complete workflow with linear model."""
         # Split data
-        train_df = sample_with_features.head(70)
-        test_df = sample_with_features.tail(30)
+        train_size = 70
+        train_X = sample_features.head(train_size)
+        train_y = sample_target.head(train_size)
+        test_X = sample_features.tail(sample_features.height - train_size)
 
         # Create and train model
-        config = QuantileRegressionConfig(quantiles=[0.05, 0.5, 0.95], alpha=0.01, n_lags=3)
-        model = QuantileRegressor(config)
-        model.fit(train_df, target_column="close")
+        predictor = QuantileRegressionPredictor(
+            quantiles=[0.05, 0.5, 0.95],
+            base_model="linear",
+        )
+        predictor.fit(train_X, train_y)
 
         # Generate predictions
-        predictions = model.predict(horizon=10)
-        assert predictions.height == 10
+        predictions = predictor.predict(test_X)
+        assert len(predictions) == test_X.height
 
-        # Evaluate
-        metrics = model.evaluate(test_df)
-        assert metrics["rmse"] >= 0
-        assert 0 <= metrics["empirical_coverage"] <= 1
+        # Generate probability predictions
+        proba_df = predictor.predict_proba(test_X)
+        assert proba_df.height == test_X.height
+        assert "quantile_0.05" in proba_df.columns
+        assert "quantile_0.95" in proba_df.columns
 
-        # Check calibration
-        coverage_diff = abs(metrics["empirical_coverage"] - metrics["expected_coverage"])
-        # Allow some deviation due to small sample
-        assert coverage_diff <= 0.3
-
-    def test_full_workflow_gbm(self, sample_with_features: pl.DataFrame) -> None:
+    def test_full_workflow_gbm(
+        self, sample_features: pl.DataFrame, sample_target: pl.Series
+    ) -> None:
         """Test complete workflow with gradient boosting."""
-        train_df = sample_with_features.head(70)
-        test_df = sample_with_features.tail(30)
+        train_size = 70
+        train_X = sample_features.head(train_size)
+        train_y = sample_target.head(train_size)
+        test_X = sample_features.tail(sample_features.height - train_size)
 
-        config = QuantileRegressionConfig(quantiles=[0.1, 0.5, 0.9], n_lags=2)
-        model = QuantileGradientBoostingRegressor(
-            config, n_estimators=30, learning_rate=0.1, max_depth=3, random_state=42
+        predictor = QuantileRegressionPredictor(
+            quantiles=[0.1, 0.5, 0.9],
+            base_model="gradient_boosting",
         )
+        predictor.fit(train_X, train_y, n_estimators=20)
 
-        model.fit(train_df)
-        predictions = model.predict(horizon=5)
-        metrics = model.evaluate(test_df)
+        predictions = predictor.predict(test_X)
+        assert len(predictions) == test_X.height
 
-        assert predictions.height == 5
-        assert metrics["rmse"] >= 0
-
-    def test_multiple_quantiles(self, sample_ohlcv_data: pl.DataFrame) -> None:
+    def test_multiple_quantiles(
+        self, sample_features: pl.DataFrame, sample_target: pl.Series
+    ) -> None:
         """Test with multiple quantiles for detailed uncertainty."""
-        config = QuantileRegressionConfig(
-            quantiles=[0.05, 0.25, 0.5, 0.75, 0.95], alpha=0.01, n_lags=2
+        predictor = QuantileRegressionPredictor(
+            quantiles=[0.05, 0.25, 0.5, 0.75, 0.95],
+            base_model="linear",
         )
-        model = QuantileRegressor(config)
-        model.fit(sample_ohlcv_data.head(80))
+        predictor.fit(sample_features, sample_target)
 
-        predictions = model.predict(horizon=3)
+        proba_df = predictor.predict_proba(sample_features)
 
         # Check all quantile columns exist
-        for q in config.quantiles:
-            assert f"quantile_{q}" in predictions.columns
+        for q in predictor.quantiles:
+            assert f"quantile_{q}" in proba_df.columns
 
         # Verify ordering: q0.05 <= q0.25 <= q0.5 <= q0.75 <= q0.95
-        # Allow small numerical tolerance for floating point errors
-        first_pred = predictions.row(0, named=True)
+        first_row = proba_df.row(0, named=True)
         tolerance = 1e-6
-        assert first_pred["quantile_0.05"] <= first_pred["quantile_0.25"] + tolerance
-        assert first_pred["quantile_0.25"] <= first_pred["quantile_0.5"] + tolerance
-        assert first_pred["quantile_0.5"] <= first_pred["quantile_0.75"] + tolerance
-        assert first_pred["quantile_0.75"] <= first_pred["quantile_0.95"] + tolerance
+        assert first_row["quantile_0.05"] <= first_row["quantile_0.25"] + tolerance
+        assert first_row["quantile_0.25"] <= first_row["quantile_0.5"] + tolerance
+        assert first_row["quantile_0.5"] <= first_row["quantile_0.75"] + tolerance
+        assert first_row["quantile_0.75"] <= first_row["quantile_0.95"] + tolerance
 
-    def test_no_lag_features(self, sample_with_features: pl.DataFrame) -> None:
-        """Test model with zero lag features."""
-        config = QuantileRegressionConfig(
+    def test_calibration_workflow(
+        self, sample_features: pl.DataFrame, sample_target: pl.Series
+    ) -> None:
+        """Test calibration workflow."""
+        train_size = 70
+        train_X = sample_features.head(train_size)
+        train_y = sample_target.head(train_size)
+        val_X = sample_features.tail(sample_features.height - train_size)
+        val_y = sample_target.tail(sample_target.len() - train_size)
+
+        predictor = QuantileRegressionPredictor(
             quantiles=[0.1, 0.5, 0.9],
-            features=["open", "high", "low", "volume"],
-            n_lags=0,
+            base_model="linear",
         )
-        model = QuantileRegressor(config)
-        model.fit(sample_with_features)
+        predictor.fit(train_X, train_y)
 
-        assert model.is_fitted
-        predictions = model.predict(horizon=5)
-        assert predictions.height == 5
+        # Calibrate
+        calibration = predictor.calibrate_intervals(val_X, val_y)
+
+        assert len(calibration) > 0
+        for nominal, empirical in calibration.items():
+            assert 0.0 <= empirical <= 1.0
+
+    def test_refit_model(
+        self, sample_features: pl.DataFrame, sample_target: pl.Series
+    ) -> None:
+        """Test that model can be refit with new data."""
+        predictor = QuantileRegressionPredictor(
+            quantiles=[0.1, 0.5, 0.9],
+            base_model="linear",
+        )
+
+        # First fit
+        predictor.fit(sample_features.head(50), sample_target.head(50))
+        assert predictor._fitted is True
+
+        # Refit with different data
+        predictor.fit(sample_features.tail(50), sample_target.tail(50))
+        assert predictor._fitted is True
+
+        # Should work with new fit
+        predictions = predictor.predict(sample_features.head(10))
+        assert len(predictions) == 10

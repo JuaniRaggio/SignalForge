@@ -5,6 +5,14 @@ recognition, embedding generation, and vector storage capabilities specifically
 designed for financial documents.
 """
 
+from signalforge.nlp.contradiction_detector import (
+    AnalystOpinion,
+    Contradiction,
+    ContradictionDetector,
+    ContradictionType,
+    DivergenceAnalysis,
+    DivergenceSeverity,
+)
 from signalforge.nlp.embeddings import (
     BaseEmbeddingModel,
     EmbeddingResult,
@@ -48,6 +56,13 @@ from signalforge.nlp.sentiment import (
     SentimentResult,
     analyze_financial_text,
     get_sentiment_analyzer,
+)
+from signalforge.nlp.summarization import (
+    MultiDocumentSummary,
+    SummaryLength,
+    SummaryResult,
+    SummaryStyle,
+    TextSummarizer,
 )
 from signalforge.nlp.topics import (
     BaseTopicExtractor,
@@ -118,4 +133,17 @@ __all__ = [
     "VectorSearchResult",
     "VectorStore",
     "VectorStoreConfig",
+    # Contradiction Detection
+    "AnalystOpinion",
+    "Contradiction",
+    "ContradictionDetector",
+    "ContradictionType",
+    "DivergenceAnalysis",
+    "DivergenceSeverity",
+    # Summarization
+    "MultiDocumentSummary",
+    "SummaryLength",
+    "SummaryResult",
+    "SummaryStyle",
+    "TextSummarizer",
 ]
