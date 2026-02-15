@@ -335,3 +335,239 @@ def calculate_annualized_volatility(returns: pl.Series) -> float:
     annualized_vol = std_return * (252.0**0.5) * 100.0
 
     return float(annualized_vol)
+
+
+def calculate_sortino_ratio(returns: pl.Series, risk_free_rate: float = 0.02) -> float:
+    """Calculate Sortino ratio (downside deviation).
+
+    The Sortino ratio is similar to the Sharpe ratio but uses downside deviation
+    instead of total volatility. It only considers negative returns when calculating
+    risk, making it more appropriate for strategies with asymmetric return distributions.
+
+    Args:
+        returns: Series of period returns (as decimals, e.g., 0.01 for 1%)
+        risk_free_rate: Annual risk-free rate (as decimal, e.g., 0.02 for 2%)
+
+    Returns:
+        Annualized Sortino ratio. Higher is better, with > 1.0 considered good.
+        Returns 0.0 if downside deviation is zero or insufficient data.
+
+    Examples:
+        >>> import polars as pl
+        >>> returns = pl.Series([0.01, -0.005, 0.02, 0.015, -0.01])
+        >>> sortino = calculate_sortino_ratio(returns, risk_free_rate=0.02)
+        >>> print(f"{sortino:.2f}")
+    """
+    if returns.is_empty() or returns.len() < 2:
+        logger.warning("calculate_sortino_ratio called with insufficient data")
+        return 0.0
+
+    # Filter out null values
+    valid_returns = returns.drop_nulls()
+    if valid_returns.len() < 2:
+        logger.warning("calculate_sortino_ratio: insufficient non-null data")
+        return 0.0
+
+    # Calculate mean return
+    mean_val = valid_returns.mean()
+    if mean_val is None:
+        return 0.0
+    mean_return = float(mean_val)  # type: ignore[arg-type]
+
+    # Calculate downside deviation (only negative returns)
+    downside_returns = valid_returns.filter(valid_returns < 0.0)
+
+    if downside_returns.is_empty() or downside_returns.len() < 2:
+        # No downside risk - return a high value or 0 depending on convention
+        # If mean return is positive and no downside, return high value
+        return float("inf") if mean_return > 0 else 0.0
+
+    downside_std_val = downside_returns.std()
+    if downside_std_val is None or float(downside_std_val) == 0.0:  # type: ignore[arg-type]
+        return float("inf") if mean_return > 0 else 0.0
+
+    downside_deviation = float(downside_std_val)  # type: ignore[arg-type]
+
+    # Convert risk-free rate from annual to daily
+    daily_rf_rate = risk_free_rate / 252.0
+
+    # Calculate Sortino ratio and annualize it
+    sortino = (mean_return - daily_rf_rate) / downside_deviation * (252.0**0.5)
+
+    return float(sortino)
+
+
+def calculate_calmar_ratio(annualized_return: float, max_drawdown: float) -> float:
+    """Calculate Calmar ratio.
+
+    The Calmar ratio is the annualized return divided by the maximum drawdown.
+    It measures return per unit of downside risk.
+
+    Args:
+        annualized_return: Annualized return as percentage (e.g., 15.5 for 15.5%)
+        max_drawdown: Maximum drawdown as percentage (positive number, e.g., 10.0 for -10%)
+
+    Returns:
+        Calmar ratio. Higher is better. Returns 0.0 if max_drawdown is zero.
+
+    Examples:
+        >>> calmar = calculate_calmar_ratio(annualized_return=20.0, max_drawdown=10.0)
+        >>> print(f"Calmar Ratio: {calmar:.2f}")
+    """
+    if max_drawdown == 0.0:
+        logger.warning("calculate_calmar_ratio: max_drawdown is zero")
+        return 0.0
+
+    return annualized_return / max_drawdown
+
+
+def calculate_information_ratio(
+    returns: pl.Series,
+    benchmark_returns: pl.Series,
+) -> float:
+    """Calculate information ratio vs benchmark.
+
+    The information ratio measures the risk-adjusted excess return relative to a benchmark.
+    It's calculated as the mean of excess returns divided by the tracking error
+    (standard deviation of excess returns).
+
+    Args:
+        returns: Series of portfolio returns (as decimals)
+        benchmark_returns: Series of benchmark returns (as decimals)
+
+    Returns:
+        Annualized information ratio. Higher is better.
+        Returns 0.0 if tracking error is zero or insufficient data.
+
+    Examples:
+        >>> import polars as pl
+        >>> portfolio_returns = pl.Series([0.01, 0.02, -0.01, 0.015])
+        >>> benchmark_returns = pl.Series([0.008, 0.015, -0.005, 0.012])
+        >>> ir = calculate_information_ratio(portfolio_returns, benchmark_returns)
+        >>> print(f"Information Ratio: {ir:.2f}")
+    """
+    if returns.is_empty() or benchmark_returns.is_empty():
+        logger.warning("calculate_information_ratio called with empty data")
+        return 0.0
+
+    if returns.len() != benchmark_returns.len():
+        logger.warning(
+            "calculate_information_ratio: returns and benchmark have different lengths"
+        )
+        return 0.0
+
+    # Calculate excess returns
+    excess_returns = returns - benchmark_returns
+    valid_excess = excess_returns.drop_nulls()
+
+    if valid_excess.len() < 2:
+        logger.warning("calculate_information_ratio: insufficient valid data")
+        return 0.0
+
+    # Mean excess return
+    mean_val = valid_excess.mean()
+    if mean_val is None:
+        return 0.0
+    mean_excess = float(mean_val)  # type: ignore[arg-type]
+
+    # Tracking error (std of excess returns)
+    std_val = valid_excess.std()
+    if std_val is None or float(std_val) == 0.0:  # type: ignore[arg-type]
+        return 0.0
+    tracking_error = float(std_val)  # type: ignore[arg-type]
+
+    # Annualize
+    ir = mean_excess / tracking_error * (252.0**0.5)
+
+    return float(ir)
+
+
+def calculate_all(
+    equity_curve: pl.Series,
+    returns: pl.Series,
+    trade_log: pl.DataFrame,
+) -> dict[str, float]:
+    """Calculate all metrics at once.
+
+    This convenience function calculates all available performance metrics
+    from the provided data.
+
+    Args:
+        equity_curve: Series of portfolio equity values over time
+        returns: Series of period returns (as decimals)
+        trade_log: DataFrame with trade details
+
+    Returns:
+        Dictionary mapping metric name to value
+
+    Examples:
+        >>> import polars as pl
+        >>> equity = pl.Series([100000, 105000, 103000, 108000])
+        >>> returns = equity.pct_change().drop_nulls()
+        >>> trades_df = pl.DataFrame({...})
+        >>> metrics = calculate_all(equity, returns, trades_df)
+        >>> print(f"Sharpe: {metrics['sharpe_ratio']:.2f}")
+    """
+    if equity_curve.is_empty() or returns.is_empty():
+        logger.warning("calculate_all called with empty data")
+        return {
+            "sharpe_ratio": 0.0,
+            "sortino_ratio": 0.0,
+            "max_drawdown": 0.0,
+            "calmar_ratio": 0.0,
+            "win_rate": 0.0,
+            "profit_factor": 0.0,
+            "information_ratio": 0.0,
+            "volatility": 0.0,
+        }
+
+    # Convert trade_log to list of Trade objects if needed
+    # This is a simplified version - actual implementation may vary
+    from signalforge.ml.backtesting.engine import Trade
+
+    trades: list[Trade] = []
+    if not trade_log.is_empty() and "pnl" in trade_log.columns:
+        for row in trade_log.iter_rows(named=True):
+            try:
+                trade = Trade(
+                    entry_date=row["entry_date"],
+                    exit_date=row["exit_date"],
+                    entry_price=float(row["entry_price"]),
+                    exit_price=float(row["exit_price"]),
+                    position_size=float(row["position_size"]),
+                    direction=row["direction"],
+                    pnl=float(row["pnl"]),
+                    return_pct=float(row["return_pct"]),
+                )
+                trades.append(trade)
+            except Exception as e:
+                logger.warning(f"Failed to parse trade: {e}")
+                continue
+
+    # Calculate all metrics
+    sharpe = calculate_sharpe_ratio(returns)
+    sortino = calculate_sortino_ratio(returns)
+    max_dd = calculate_max_drawdown(equity_curve)
+    win_rate = calculate_win_rate(trades)
+    pf = calculate_profit_factor(trades)
+    volatility = calculate_annualized_volatility(returns)
+
+    # Calculate annualized return for Calmar ratio
+    initial = float(equity_curve[0])
+    final = float(equity_curve[-1])
+    total_return = ((final - initial) / initial) * 100.0
+    num_days = equity_curve.len()
+    ann_return = calculate_annualized_return(total_return, num_days)
+
+    calmar = calculate_calmar_ratio(ann_return, max_dd)
+
+    return {
+        "sharpe_ratio": sharpe,
+        "sortino_ratio": sortino,
+        "max_drawdown": max_dd,
+        "calmar_ratio": calmar,
+        "win_rate": win_rate,
+        "profit_factor": pf,
+        "information_ratio": 0.0,  # Requires benchmark data
+        "volatility": volatility,
+    }
