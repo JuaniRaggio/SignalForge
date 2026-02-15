@@ -1,386 +1,293 @@
-"""Liquidity assessment for trading signals.
+"""Liquidity scoring module for execution quality assessment.
 
-This module provides comprehensive liquidity analysis for assets, enabling
-traders to assess whether signals are executable under real market conditions.
-
-Key Features:
-- Average Daily Volume (ADV) calculation
-- Volume volatility measurement
-- Liquidity scoring system (0-100)
-- Redis caching for performance optimization
-
-Examples:
-    Basic liquidity assessment:
-
-    >>> import polars as pl
-    >>> from signalforge.execution.liquidity import assess_liquidity
-    >>>
-    >>> df = pl.DataFrame({
-    ...     "timestamp": [...],
-    ...     "close": [...],
-    ...     "volume": [...],
-    ... })
-    >>> metrics = assess_liquidity(df, "AAPL")
-    >>> if metrics.is_liquid:
-    ...     print(f"Asset is liquid with score: {metrics.liquidity_score}")
-
-    Using cached metrics:
-
-    >>> from signalforge.execution.liquidity import get_cached_liquidity_metrics
-    >>> metrics = await get_cached_liquidity_metrics(df, "AAPL", redis_client)
+This module provides comprehensive liquidity analysis for trading symbols,
+enabling traders to assess whether signals are executable under real market conditions.
 """
 
 from __future__ import annotations
 
-import json
-from dataclasses import asdict, dataclass
+from datetime import datetime
 from typing import TYPE_CHECKING
 
 import polars as pl
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from signalforge.core.logging import get_logger
+from signalforge.execution.schemas import LiquidityScore
+from signalforge.models.price import Price
 
 if TYPE_CHECKING:
-    from redis.asyncio import Redis
+    pass
 
 logger = get_logger(__name__)
 
-# Liquidity scoring thresholds
-HIGH_LIQUIDITY_THRESHOLD = 70.0
-MEDIUM_LIQUIDITY_THRESHOLD = 40.0
 
-# Cache configuration
-LIQUIDITY_CACHE_TTL = 3600  # 1 hour in seconds
+class LiquidityScorer:
+    """Score stock liquidity for execution quality.
 
+    Calculates a comprehensive liquidity score based on multiple factors
+    including volume, spread, market capitalization, and order book depth.
 
-@dataclass
-class LiquidityMetrics:
-    """Metrics for assessing asset liquidity.
-
-    Attributes:
-        symbol: Asset symbol being analyzed.
-        avg_daily_volume: Average Daily Volume over the specified window (default 20 days).
-        volume_volatility: Standard deviation of volume, indicating consistency.
-        liquidity_score: Composite score from 0-100 indicating overall liquidity.
-        is_liquid: Boolean flag indicating if the asset meets liquidity threshold.
+    The scoring system weights each component to produce a final score
+    from 0-100, with higher scores indicating better liquidity.
     """
 
-    symbol: str
-    avg_daily_volume: float
-    volume_volatility: float
-    liquidity_score: float
-    is_liquid: bool
+    def __init__(
+        self,
+        volume_weight: float = 0.4,
+        spread_weight: float = 0.3,
+        market_cap_weight: float = 0.2,
+        depth_weight: float = 0.1,
+    ) -> None:
+        """Initialize liquidity scorer with component weights.
 
-    def __post_init__(self) -> None:
-        """Validate liquidity metrics."""
-        if self.avg_daily_volume < 0:
-            raise ValueError("avg_daily_volume cannot be negative")
-        if self.volume_volatility < 0:
-            raise ValueError("volume_volatility cannot be negative")
-        if not 0 <= self.liquidity_score <= 100:
-            raise ValueError("liquidity_score must be between 0 and 100")
+        Args:
+            volume_weight: Weight for volume-based score (default: 0.4).
+            spread_weight: Weight for spread-based score (default: 0.3).
+            market_cap_weight: Weight for market cap score (default: 0.2).
+            depth_weight: Weight for order book depth score (default: 0.1).
 
-    def to_dict(self) -> dict[str, str | float | bool]:
-        """Convert metrics to dictionary for serialization."""
-        return asdict(self)
+        Raises:
+            ValueError: If weights don't sum to 1.0.
+        """
+        self.volume_weight = volume_weight
+        self.spread_weight = spread_weight
+        self.market_cap_weight = market_cap_weight
+        self.depth_weight = depth_weight
 
+        total_weight = volume_weight + spread_weight + market_cap_weight + depth_weight
+        if abs(total_weight - 1.0) > 0.001:
+            raise ValueError(f"Weights must sum to 1.0, got {total_weight}")
 
-def calculate_avg_daily_volume(df: pl.DataFrame, window: int = 20) -> float:
-    """Calculate Average Daily Volume over window period.
-
-    Args:
-        df: DataFrame containing volume data with a 'volume' column.
-        window: Number of days to calculate average over (default: 20).
-
-    Returns:
-        Average daily volume as a float.
-
-    Raises:
-        ValueError: If volume column is missing or DataFrame is empty.
-
-    Examples:
-        >>> import polars as pl
-        >>> df = pl.DataFrame({"volume": [1000000, 1200000, 900000, 1100000]})
-        >>> adv = calculate_avg_daily_volume(df, window=4)
-        >>> print(f"ADV: {adv}")
-    """
-    if "volume" not in df.columns:
-        raise ValueError("DataFrame must contain 'volume' column")
-
-    if df.height == 0:
-        raise ValueError("DataFrame cannot be empty")
-
-    # Take the last 'window' days of data
-    recent_data = df.tail(window) if df.height >= window else df
-
-    # Calculate mean volume
-    mean_val = recent_data["volume"].mean()
-    if mean_val is None:
-        logger.warning("calculate_avg_daily_volume returned null, using 0.0")
-        return 0.0
-    avg_volume = float(mean_val)  # type: ignore[arg-type]
-
-    logger.debug(
-        "calculated_avg_daily_volume",
-        window=window,
-        rows_used=recent_data.height,
-        avg_volume=avg_volume,
-    )
-
-    return avg_volume
-
-
-def calculate_liquidity_score(
-    avg_volume: float,
-    price: float,
-    volume_volatility: float,
-) -> float:
-    """Calculate liquidity score from 0-100.
-
-    The liquidity score is a composite metric that considers:
-    - Dollar volume (volume * price): Higher is better
-    - Volume consistency (lower volatility is better)
-
-    Scoring Guidelines:
-    - Score > 70: High liquidity (suitable for most trading strategies)
-    - Score 40-70: Medium liquidity (acceptable with caution)
-    - Score < 40: Low liquidity (risky for execution)
-
-    Args:
-        avg_volume: Average daily volume in shares/units.
-        price: Current or average price of the asset.
-        volume_volatility: Standard deviation of volume (lower is more consistent).
-
-    Returns:
-        Liquidity score from 0.0 to 100.0.
-
-    Raises:
-        ValueError: If inputs are negative or price is zero.
-
-    Examples:
-        >>> score = calculate_liquidity_score(
-        ...     avg_volume=5_000_000,
-        ...     price=150.0,
-        ...     volume_volatility=500_000
-        ... )
-        >>> print(f"Liquidity score: {score:.2f}")
-    """
-    if avg_volume < 0:
-        raise ValueError("avg_volume cannot be negative")
-    if price <= 0:
-        raise ValueError("price must be positive")
-    if volume_volatility < 0:
-        raise ValueError("volume_volatility cannot be negative")
-
-    # Handle edge case of zero volume
-    if avg_volume == 0:
-        logger.warning("calculate_liquidity_score called with zero avg_volume")
-        return 0.0
-
-    # Calculate dollar volume (notional value traded per day)
-    dollar_volume = avg_volume * price
-
-    # Base score from dollar volume (logarithmic scale)
-    # $1M daily volume -> ~50 points
-    # $10M daily volume -> ~70 points
-    # $100M+ daily volume -> ~90+ points
-    import math
-
-    if dollar_volume > 0:
-        volume_score = min(100.0, 30.0 + 30.0 * math.log10(dollar_volume / 1_000_000))
-    else:
-        volume_score = 0.0
-
-    # Consistency score from volume volatility
-    # Lower volatility (more consistent) is better
-    coefficient_of_variation = volume_volatility / avg_volume if avg_volume > 0 else 1.0
-
-    # CV < 0.2 (20%) is excellent, CV > 1.0 (100%) is poor
-    consistency_score = max(0.0, 40.0 * (1.0 - min(coefficient_of_variation, 1.0)))
-
-    # Combine scores (60% volume, 40% consistency)
-    liquidity_score = 0.6 * volume_score + 0.4 * consistency_score
-
-    # Ensure score is within bounds
-    liquidity_score = max(0.0, min(100.0, liquidity_score))
-
-    logger.debug(
-        "calculated_liquidity_score",
-        avg_volume=avg_volume,
-        price=price,
-        dollar_volume=dollar_volume,
-        volume_volatility=volume_volatility,
-        volume_score=volume_score,
-        consistency_score=consistency_score,
-        final_score=liquidity_score,
-    )
-
-    return liquidity_score
-
-
-def assess_liquidity(df: pl.DataFrame, symbol: str, window: int = 20) -> LiquidityMetrics:
-    """Assess liquidity for a given symbol from price data.
-
-    This is the primary function for comprehensive liquidity assessment.
-    It calculates all relevant metrics and returns a structured result.
-
-    Args:
-        df: DataFrame with columns: 'timestamp', 'close', 'volume'.
-        symbol: Asset symbol being analyzed.
-        window: Number of days for ADV calculation (default: 20).
-
-    Returns:
-        LiquidityMetrics object with comprehensive liquidity assessment.
-
-    Raises:
-        ValueError: If required columns are missing or data is invalid.
-
-    Examples:
-        >>> import polars as pl
-        >>> from datetime import datetime, timedelta
-        >>>
-        >>> dates = [datetime(2024, 1, 1) + timedelta(days=i) for i in range(30)]
-        >>> df = pl.DataFrame({
-        ...     "timestamp": dates,
-        ...     "close": [150.0] * 30,
-        ...     "volume": [5_000_000 + i * 10_000 for i in range(30)],
-        ... })
-        >>>
-        >>> metrics = assess_liquidity(df, "AAPL")
-        >>> print(f"Liquidity Score: {metrics.liquidity_score:.2f}")
-        >>> print(f"Is Liquid: {metrics.is_liquid}")
-    """
-    # Validate required columns
-    required_cols = ["timestamp", "close", "volume"]
-    missing_cols = [col for col in required_cols if col not in df.columns]
-    if missing_cols:
-        raise ValueError(f"Missing required columns: {missing_cols}")
-
-    if df.height == 0:
-        raise ValueError("DataFrame cannot be empty")
-
-    logger.info(
-        "assessing_liquidity",
-        symbol=symbol,
-        rows=df.height,
-        window=window,
-    )
-
-    # Calculate average daily volume
-    avg_daily_volume = calculate_avg_daily_volume(df, window)
-
-    # Calculate volume volatility (standard deviation)
-    recent_data = df.tail(window) if df.height >= window else df
-    std_val = recent_data["volume"].std()
-    if std_val is None:
-        logger.warning("volume std returned null, using 0.0")
-        volume_std = 0.0
-    else:
-        volume_std = float(std_val)  # type: ignore[arg-type]
-
-    # Get current/average price for dollar volume calculation
-    mean_price_val = recent_data["close"].mean()
-    if mean_price_val is None:
-        logger.warning("avg_price is invalid, using 1.0 for calculation")
-        avg_price = 1.0
-    else:
-        avg_price = float(mean_price_val)  # type: ignore[arg-type]
-        if avg_price <= 0:
-            logger.warning("avg_price is invalid, using 1.0 for calculation")
-            avg_price = 1.0
-
-    # Calculate liquidity score
-    liquidity_score = calculate_liquidity_score(
-        avg_volume=avg_daily_volume,
-        price=avg_price,
-        volume_volatility=volume_std,
-    )
-
-    # Determine if asset is liquid based on threshold
-    is_liquid = liquidity_score > MEDIUM_LIQUIDITY_THRESHOLD
-
-    metrics = LiquidityMetrics(
-        symbol=symbol,
-        avg_daily_volume=avg_daily_volume,
-        volume_volatility=volume_std,
-        liquidity_score=liquidity_score,
-        is_liquid=is_liquid,
-    )
-
-    logger.info(
-        "liquidity_assessed",
-        symbol=symbol,
-        avg_daily_volume=avg_daily_volume,
-        liquidity_score=liquidity_score,
-        is_liquid=is_liquid,
-    )
-
-    return metrics
-
-
-async def get_cached_liquidity_metrics(
-    df: pl.DataFrame,
-    symbol: str,
-    redis_client: Redis,
-    window: int = 20,
-    force_refresh: bool = False,
-) -> LiquidityMetrics:
-    """Get liquidity metrics with Redis caching.
-
-    This function checks Redis cache first, and only calculates metrics
-    if the cache is empty or expired. This significantly improves performance
-    for frequently accessed symbols.
-
-    Args:
-        df: DataFrame with price and volume data.
-        symbol: Asset symbol being analyzed.
-        redis_client: Redis client for caching.
-        window: Number of days for ADV calculation (default: 20).
-        force_refresh: If True, bypass cache and recalculate (default: False).
-
-    Returns:
-        LiquidityMetrics object (from cache or freshly calculated).
-
-    Examples:
-        >>> from signalforge.core.redis import get_redis
-        >>> redis = await get_redis()
-        >>> metrics = await get_cached_liquidity_metrics(df, "AAPL", redis)
-    """
-    cache_key = f"liquidity:metrics:{symbol}:{window}"
-
-    # Try to get from cache if not forcing refresh
-    if not force_refresh:
-        try:
-            cached_data = await redis_client.get(cache_key)
-            if cached_data:
-                logger.debug("liquidity_metrics_cache_hit", symbol=symbol)
-                metrics_dict = json.loads(cached_data)
-                return LiquidityMetrics(**metrics_dict)
-        except Exception as e:
-            logger.warning(
-                "liquidity_cache_read_failed",
-                symbol=symbol,
-                error=str(e),
-            )
-
-    # Cache miss or forced refresh - calculate metrics
-    logger.debug("liquidity_metrics_cache_miss", symbol=symbol)
-    metrics = assess_liquidity(df, symbol, window)
-
-    # Store in cache
-    try:
-        metrics_json = json.dumps(metrics.to_dict())
-        await redis_client.setex(cache_key, LIQUIDITY_CACHE_TTL, metrics_json)
         logger.debug(
-            "liquidity_metrics_cached",
-            symbol=symbol,
-            ttl=LIQUIDITY_CACHE_TTL,
-        )
-    except Exception as e:
-        logger.warning(
-            "liquidity_cache_write_failed",
-            symbol=symbol,
-            error=str(e),
+            "liquidity_scorer_initialized",
+            volume_weight=volume_weight,
+            spread_weight=spread_weight,
+            market_cap_weight=market_cap_weight,
+            depth_weight=depth_weight,
         )
 
-    return metrics
+    async def score(self, symbol: str, session: AsyncSession) -> LiquidityScore:
+        """Calculate liquidity score for a symbol from database.
+
+        Args:
+            symbol: Trading symbol to score.
+            session: Async database session.
+
+        Returns:
+            LiquidityScore with comprehensive assessment.
+
+        Raises:
+            ValueError: If insufficient data available.
+        """
+        logger.info("calculating_liquidity_score", symbol=symbol)
+
+        # Fetch last 20 days of price data
+        stmt = (
+            select(Price)
+            .where(Price.symbol == symbol)
+            .order_by(Price.timestamp.desc())
+            .limit(20)
+        )
+        result = await session.execute(stmt)
+        prices = result.scalars().all()
+
+        if len(prices) < 10:
+            raise ValueError(f"Insufficient data for {symbol}: only {len(prices)} days available")
+
+        # Convert to Polars for calculation
+        df = pl.DataFrame(
+            {
+                "timestamp": [p.timestamp for p in prices],
+                "close": [float(p.close) for p in prices],
+                "volume": [p.volume for p in prices],
+                "high": [float(p.high) for p in prices],
+                "low": [float(p.low) for p in prices],
+            }
+        )
+
+        # Calculate ADV
+        adv_mean = df["volume"].mean()
+        if adv_mean is None:
+            adv_20 = 0.0
+        else:
+            # Cast to float, mypy doesn't understand Polars types well
+            adv_20 = float(adv_mean)  # type: ignore[arg-type]
+
+        # Calculate average spread (using high-low as proxy)
+        df = df.with_columns(
+            ((pl.col("high") - pl.col("low")) / pl.col("close") * 10000).alias("spread_bps")
+        )
+        spread_mean = df["spread_bps"].mean()
+        if spread_mean is None:
+            avg_spread_bps = 0.0
+        else:
+            # Cast to float, mypy doesn't understand Polars types well
+            avg_spread_bps = float(spread_mean)  # type: ignore[arg-type]
+
+        return self.score_from_data(
+            symbol=symbol, adv_20=adv_20, avg_spread_bps=avg_spread_bps, market_cap=None
+        )
+
+    def score_from_data(
+        self,
+        symbol: str,
+        adv_20: float,
+        avg_spread_bps: float,
+        market_cap: float | None = None,
+    ) -> LiquidityScore:
+        """Calculate score from provided data without database access.
+
+        Args:
+            symbol: Trading symbol.
+            adv_20: Average daily volume over 20 days.
+            avg_spread_bps: Average spread in basis points.
+            market_cap: Market capitalization in dollars (optional).
+
+        Returns:
+            LiquidityScore with calculated metrics.
+        """
+        logger.debug(
+            "scoring_from_data",
+            symbol=symbol,
+            adv_20=adv_20,
+            avg_spread_bps=avg_spread_bps,
+            market_cap=market_cap,
+        )
+
+        # Calculate component scores
+        volume_score = self._calculate_volume_score(adv_20)
+        spread_score = self._calculate_spread_score(avg_spread_bps)
+        market_cap_score = self._calculate_market_cap_score(market_cap) if market_cap else 50.0
+
+        # Depth score defaults to 50 if not available
+        depth_score = 50.0
+
+        # Calculate weighted total score
+        total_score = (
+            volume_score * self.volume_weight
+            + spread_score * self.spread_weight
+            + market_cap_score * self.market_cap_weight
+            + depth_score * self.depth_weight
+        )
+
+        # Ensure score is within bounds
+        total_score = max(0.0, min(100.0, total_score))
+
+        rating = self._get_rating(total_score)
+
+        liquidity_score = LiquidityScore(
+            symbol=symbol,
+            timestamp=datetime.now(),
+            score=total_score,
+            volume_score=volume_score,
+            spread_score=spread_score,
+            market_cap_score=market_cap_score,
+            adv_20=adv_20,
+            rating=rating,
+        )
+
+        logger.info(
+            "liquidity_scored",
+            symbol=symbol,
+            score=total_score,
+            rating=rating,
+            adv_20=adv_20,
+        )
+
+        return liquidity_score
+
+    def _calculate_volume_score(self, adv: float) -> float:
+        """Calculate volume-based score.
+
+        Scoring Guidelines:
+        - ADV > 10M shares: 100 points (highly liquid)
+        - ADV > 1M shares: 80 points (liquid)
+        - ADV > 100K shares: 60 points (moderately liquid)
+        - ADV > 10K shares: 40 points (low liquidity)
+        - ADV <= 10K shares: 20 points (illiquid)
+
+        Args:
+            adv: Average daily volume in shares.
+
+        Returns:
+            Volume score (0-100).
+        """
+        if adv > 10_000_000:
+            return 100.0
+        elif adv > 1_000_000:
+            return 80.0
+        elif adv > 100_000:
+            return 60.0
+        elif adv > 10_000:
+            return 40.0
+        else:
+            return 20.0
+
+    def _calculate_spread_score(self, spread_bps: float) -> float:
+        """Calculate spread-based score.
+
+        Scoring Guidelines:
+        - Spread < 5 bps: 100 points (institutional quality)
+        - Spread < 10 bps: 80 points (very tight)
+        - Spread < 25 bps: 60 points (acceptable)
+        - Spread < 50 bps: 40 points (wide)
+        - Spread >= 50 bps: 20 points (very wide)
+
+        Args:
+            spread_bps: Spread in basis points.
+
+        Returns:
+            Spread score (0-100).
+        """
+        if spread_bps < 5:
+            return 100.0
+        elif spread_bps < 10:
+            return 80.0
+        elif spread_bps < 25:
+            return 60.0
+        elif spread_bps < 50:
+            return 40.0
+        else:
+            return 20.0
+
+    def _calculate_market_cap_score(self, market_cap: float) -> float:
+        """Calculate market capitalization score.
+
+        Args:
+            market_cap: Market cap in dollars.
+
+        Returns:
+            Market cap score (0-100).
+        """
+        if market_cap > 10_000_000_000:  # > $10B (large cap)
+            return 100.0
+        elif market_cap > 2_000_000_000:  # > $2B (mid cap)
+            return 80.0
+        elif market_cap > 300_000_000:  # > $300M (small cap)
+            return 60.0
+        elif market_cap > 50_000_000:  # > $50M (micro cap)
+            return 40.0
+        else:  # <= $50M (nano cap)
+            return 20.0
+
+    def _get_rating(self, score: float) -> str:
+        """Convert numeric score to categorical rating.
+
+        Args:
+            score: Numeric liquidity score (0-100).
+
+        Returns:
+            Rating string.
+        """
+        if score >= 80:
+            return "excellent"
+        elif score >= 60:
+            return "good"
+        elif score >= 40:
+            return "fair"
+        elif score >= 20:
+            return "poor"
+        else:
+            return "illiquid"
