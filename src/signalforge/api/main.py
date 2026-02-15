@@ -8,7 +8,28 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from signalforge.api.middleware.exception_handler import setup_exception_handlers
 from signalforge.api.middleware.logging import LoggingMiddleware
-from signalforge.api.routes import auth, health, market, news
+from signalforge.api.middleware.metrics import MetricsMiddleware
+from signalforge.api.routes import (
+    api_keys,
+    auth,
+    billing,
+    competition,
+    dashboard,
+    events,
+    execution,
+    explainability,
+    health,
+    leaderboard,
+    market,
+    ml,
+    news,
+    nlp,
+    orderflow,
+    paper_trading,
+    recommendations,
+    users,
+    websocket,
+)
 from signalforge.core.config import get_settings
 from signalforge.core.logging import configure_logging, get_logger
 from signalforge.core.redis import close_redis
@@ -53,6 +74,9 @@ def create_app() -> FastAPI:
         allow_headers=["*"],
     )
 
+    # Add metrics middleware (before logging to capture all requests)
+    app.add_middleware(MetricsMiddleware)
+
     # Add structured logging middleware
     app.add_middleware(LoggingMiddleware)
 
@@ -74,6 +98,77 @@ def create_app() -> FastAPI:
         news.router,
         prefix=f"{settings.api_v1_prefix}/news",
         tags=["News"],
+    )
+    app.include_router(
+        users.router,
+        prefix=f"{settings.api_v1_prefix}/users",
+        tags=["Users"],
+    )
+    app.include_router(
+        events.router,
+        prefix=f"{settings.api_v1_prefix}",
+        tags=["Events"],
+    )
+    app.include_router(
+        orderflow.router,
+        prefix=f"{settings.api_v1_prefix}",
+        tags=["OrderFlow"],
+    )
+    app.include_router(
+        ml.router,
+        prefix=f"{settings.api_v1_prefix}/ml",
+        tags=["Machine Learning"],
+    )
+    app.include_router(
+        execution.router,
+        prefix=f"{settings.api_v1_prefix}/execution",
+        tags=["Execution Quality"],
+    )
+    app.include_router(
+        nlp.router,
+        prefix=f"{settings.api_v1_prefix}/nlp",
+        tags=["NLP Signals"],
+    )
+    app.include_router(
+        explainability.router,
+        prefix=f"{settings.api_v1_prefix}/explainability",
+        tags=["Explainability"],
+    )
+    app.include_router(
+        recommendations.router,
+        prefix=f"{settings.api_v1_prefix}/recommendations",
+        tags=["Recommendations"],
+    )
+    app.include_router(
+        billing.router,
+        prefix=f"{settings.api_v1_prefix}/billing",
+        tags=["Billing"],
+    )
+    app.include_router(
+        api_keys.router,
+        prefix=f"{settings.api_v1_prefix}",
+        tags=["API Keys"],
+    )
+    app.include_router(
+        dashboard.router,
+        prefix=f"{settings.api_v1_prefix}",
+        tags=["Dashboard"],
+    )
+    app.include_router(
+        competition.router,
+        tags=["Competitions"],
+    )
+    app.include_router(
+        paper_trading.router,
+        tags=["Paper Trading"],
+    )
+    app.include_router(
+        leaderboard.router,
+        tags=["Leaderboard"],
+    )
+    app.include_router(
+        websocket.router,
+        tags=["WebSocket"],
     )
 
     return app

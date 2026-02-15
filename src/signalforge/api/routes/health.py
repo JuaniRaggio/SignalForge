@@ -1,6 +1,7 @@
 """Health check endpoints."""
 
-from fastapi import APIRouter, status
+from fastapi import APIRouter, Response, status
+from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
 from pydantic import BaseModel
 
 from signalforge.core.database import check_database_connection, check_timescaledb
@@ -54,3 +55,13 @@ async def readiness_check() -> ReadinessResponse:
         redis=redis_ok,
         timescaledb=timescale_ok,
     )
+
+
+@router.get("/metrics")
+async def metrics() -> Response:
+    """Expose Prometheus metrics endpoint.
+
+    Returns metrics in Prometheus text-based exposition format.
+    This endpoint should be scraped by Prometheus at regular intervals.
+    """
+    return Response(content=generate_latest(), media_type=CONTENT_TYPE_LATEST)
