@@ -427,6 +427,26 @@ class ARIMAPredictor(BasePredictor):
         """
         return self._fitted and self._fitted_model is not None
 
+    def predict_proba(self, X: pl.DataFrame) -> pl.DataFrame:
+        """Return prediction probabilities with confidence intervals.
+
+        For ARIMA models, this returns the forecast with confidence intervals.
+
+        Args:
+            X: Feature DataFrame (used to determine horizon based on row count).
+
+        Returns:
+            DataFrame with prediction, lower_ci, upper_ci columns.
+
+        Raises:
+            RuntimeError: If model has not been fitted.
+        """
+        if not self.is_fitted:
+            raise RuntimeError("Model must be fitted before prediction. Call fit() first.")
+
+        horizon = X.height if X.height > 0 else 1
+        return self.predict(horizon=horizon)
+
 
 class RollingMeanPredictor(BasePredictor):
     """Naive baseline predictor using rolling mean.
@@ -689,3 +709,39 @@ class RollingMeanPredictor(BasePredictor):
             True if model is fitted and ready for prediction.
         """
         return self._fitted and self._training_data is not None
+
+    def predict_proba(self, X: pl.DataFrame) -> pl.DataFrame:
+        """Return prediction probabilities with confidence estimates.
+
+        For rolling mean models, this returns the prediction with estimated
+        confidence intervals based on historical standard deviation.
+
+        Args:
+            X: Feature DataFrame (used to determine horizon based on row count).
+
+        Returns:
+            DataFrame with prediction, lower_ci, upper_ci columns.
+
+        Raises:
+            RuntimeError: If model has not been fitted.
+        """
+        if not self.is_fitted:
+            raise RuntimeError("Model must be fitted before prediction. Call fit() first.")
+
+        horizon = X.height if X.height > 0 else 1
+        predictions_df = self.predict(horizon=horizon)
+
+        # Calculate confidence intervals based on historical std dev
+        assert self._training_data is not None
+        last_values = self._training_data[self._target_column].tail(self.window)
+        std_dev = float(last_values.std() or 0)  # type: ignore[arg-type]
+
+        # Add 95% confidence intervals (1.96 * std)
+        predictions = predictions_df["prediction"].to_list()
+        lower_ci = [p - 1.96 * std_dev for p in predictions]
+        upper_ci = [p + 1.96 * std_dev for p in predictions]
+
+        return predictions_df.with_columns([
+            pl.Series("lower_ci", lower_ci),
+            pl.Series("upper_ci", upper_ci),
+        ])

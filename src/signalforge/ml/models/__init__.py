@@ -36,9 +36,11 @@ Examples:
     >>> result = ensemble.predict(horizon=10)
 """
 
-from signalforge.ml.models.base import BasePredictor
+from signalforge.ml.models.arima import ARIMAPredictor as NewARIMAPredictor
+from signalforge.ml.models.base import BasePredictor, PredictionResult
 from signalforge.ml.models.baseline import ARIMAPredictor, RollingMeanPredictor
-from signalforge.ml.models.ensemble import (
+from signalforge.ml.models.ensemble import EnsemblePredictor
+from signalforge.ml.models.ensemble_old import (
     BaseEnsemble,
     EnsembleConfig,
     EnsemblePrediction,
@@ -47,7 +49,11 @@ from signalforge.ml.models.ensemble import (
     create_ensemble,
     optimize_weights,
 )
-from signalforge.ml.models.quantile_regression import (
+from signalforge.ml.models.garch import GARCHPredictor
+from signalforge.ml.models.lstm import LSTMNetwork, LSTMPredictor
+from signalforge.ml.models.prophet_model import ProphetPredictor
+from signalforge.ml.models.quantile_regression import QuantileRegressionPredictor
+from signalforge.ml.models.quantile_regression_old import (
     QuantileGradientBoostingRegressor,
     QuantilePrediction,
     QuantileRegressionConfig,
@@ -59,8 +65,18 @@ from signalforge.ml.models.quantile_regression import (
 
 __all__ = [
     "BasePredictor",
+    "PredictionResult",
     "ARIMAPredictor",
+    "NewARIMAPredictor",
     "RollingMeanPredictor",
+    "ProphetPredictor",
+    "GARCHPredictor",
+    "LSTMNetwork",
+    "LSTMPredictor",
+    # New BasePredictor-compliant models
+    "EnsemblePredictor",
+    "QuantileRegressionPredictor",
+    # Old interface models (preserved for backward compatibility)
     "BaseEnsemble",
     "WeightedEnsemble",
     "StackingEnsemble",
