@@ -1,47 +1,54 @@
 """Model inference and explainability for SignalForge.
 
-This module provides inference capabilities and model explainability
-using SHAP (SHapley Additive exPlanations) values. It enables:
+This module provides comprehensive inference capabilities including:
 
-- Single and batch prediction explanations
-- Feature importance analysis
-- Human-readable summaries with financial context
-- Visualization data generation for plots
+- Production prediction service with caching
+- ONNX Runtime integration for optimized inference
+- Model registry for versioning and management
+- SHAP-based explainability
 
 Key Components:
+    PredictionService: Main service for generating predictions
+    PredictionResponse: Structured prediction result
+    ONNXPredictor: ONNX Runtime wrapper for fast inference
+    ModelRegistry: Registry for managing trained models
+    ModelInfo: Model metadata and versioning
     ModelExplainer: SHAP-based explainer for ML models
     ExplanationResult: Complete explanation for a prediction
-    FeatureImportance: Individual feature contribution
-    ExplainerConfig: Configuration for explainer behavior
 
 Examples:
-    Basic usage with a trained model:
+    Production prediction service:
 
-    >>> from signalforge.ml.inference import ModelExplainer, ExplainerConfig
+    >>> from signalforge.ml.inference import PredictionService, ModelRegistry
+    >>> from signalforge.ml.features import TechnicalFeatureEngine
+    >>>
+    >>> registry = ModelRegistry("models/")
+    >>> features = TechnicalFeatureEngine()
+    >>> service = PredictionService(registry, features)
+    >>>
+    >>> result = await service.predict("AAPL", horizon_days=5)
+    >>> print(f"Predicted return: {result.predicted_return:.2%}")
+
+    ONNX Runtime inference:
+
+    >>> from signalforge.ml.inference import ONNXPredictor
     >>> import polars as pl
     >>>
-    >>> # Configure explainer
-    >>> config = ExplainerConfig(method="tree", max_features=10)
-    >>> explainer = ModelExplainer(config)
-    >>>
-    >>> # Explain a prediction
+    >>> predictor = ONNXPredictor("models/lstm_v1.onnx")
     >>> X = pl.DataFrame({"rsi_14": [65.0], "macd": [0.5]})
-    >>> result = explainer.explain(model, X)
-    >>> print(result.summary_text)
+    >>> predictions = predictor.predict(X)
 
-    Batch processing:
+    Model registry:
 
-    >>> # Explain multiple predictions
-    >>> X_batch = pl.DataFrame({
-    ...     "rsi_14": [65.0, 45.0, 55.0],
-    ...     "macd": [0.5, -0.3, 0.1]
-    ... })
-    >>> results = explainer.explain_batch(model, X_batch)
+    >>> from signalforge.ml.inference import ModelRegistry
     >>>
-    >>> # Get global feature importance
-    >>> importances = explainer.get_feature_importance(model, X_batch)
-    >>> for imp in importances[:5]:
-    ...     print(f"{imp.feature}: {imp.importance:.4f} ({imp.direction})")
+    >>> registry = ModelRegistry("models/")
+    >>> model_id = registry.register(
+    ...     model,
+    ...     metrics={"mse": 0.025},
+    ...     tags={"type": "lstm"}
+    ... )
+    >>> registry.set_default(model_id)
 """
 
 from signalforge.ml.inference.explainer import (
@@ -54,8 +61,20 @@ from signalforge.ml.inference.explainer import (
     plot_summary,
     plot_waterfall,
 )
+from signalforge.ml.inference.model_registry import ModelInfo, ModelRegistry
+from signalforge.ml.inference.onnx_runtime import ONNXPredictor
+from signalforge.ml.inference.predictor import PredictionResponse, PredictionService
 
 __all__ = [
+    # Prediction service
+    "PredictionService",
+    "PredictionResponse",
+    # ONNX Runtime
+    "ONNXPredictor",
+    # Model registry
+    "ModelRegistry",
+    "ModelInfo",
+    # Explainability
     "BaseExplainer",
     "ModelExplainer",
     "ExplainerConfig",
