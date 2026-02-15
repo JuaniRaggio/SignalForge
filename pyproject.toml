@@ -47,6 +47,17 @@ dependencies = [
     "pgvector>=0.2.0",
     "shap>=0.42.0",
     "hmmlearn>=0.3.0",
+    "scipy>=1.11.0",
+    "prometheus-client>=0.19.0",
+    "arch>=6.2.0",
+    "prophet>=1.1.5",
+    "pymupdf>=1.23.0",
+    "pdfplumber>=0.10.0",
+    "pytesseract>=0.3.10",
+    "pillow>=10.0.0",
+    "psutil>=7.2.2",
+    "onnxruntime>=1.24.1",
+    "onnx>=1.20.1",
 ]
 
 [project.optional-dependencies]
@@ -92,7 +103,7 @@ ignore = [
 ]
 
 [tool.ruff.lint.per-file-ignores]
-"tests/*" = ["ARG002"]  # Allow unused fixture arguments in tests
+"tests/*" = ["ARG001", "ARG002"]  # Allow unused fixture arguments in tests
 
 [tool.ruff.lint.isort]
 known-first-party = ["signalforge"]
@@ -123,6 +134,14 @@ module = [
     "pgvector.*",
     "shap.*",
     "hmmlearn.*",
+    "prometheus_client.*",
+    "arch.*",
+    "prophet.*",
+    "onnxruntime.*",
+    "fitz",
+    "pdfplumber",
+    "pytesseract",
+    "PIL",
 ]
 ignore_missing_imports = true
 
@@ -132,4 +151,9 @@ testpaths = ["tests"]
 addopts = "-v --tb=short"
 filterwarnings = [
     "ignore::DeprecationWarning",
+]
+
+[dependency-groups]
+dev = [
+    "aiosqlite>=0.22.1",
 ]
